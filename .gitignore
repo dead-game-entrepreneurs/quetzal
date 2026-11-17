@@ -1,0 +1,28 @@
+# Local settings, private runtime data and build caches.
+.env
+.env.*
+!.env.example
+data/
+.cache/
+work/
+
+# Disc assets and generated reverse-engineering projects.
+disc/
+ghidra/*.gpr
+ghidra/*.rep/
+ghidra/*.lock*
+*.iso
+*.ISO
+*.pcap
+*.pcapng
+*.ndjson
+*.key
+*.pem
+
+# Local tools and build output.
+__pycache__/
+*.pyc
+bin/
+/quetzal
+coverage.out
+.DS_Store

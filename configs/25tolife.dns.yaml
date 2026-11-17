@@ -1,0 +1,12 @@
+# Example rule for revive-dns. Replace the documentation address with your server.
+# Preserve your existing DNAS forwarding rules.
+- service: quetzal-25tolife
+  names:
+    - ttlliveps2.quazal.net
+    - ttl1.quazal.net
+    - ttl2.quazal.net
+    - ttl3.quazal.net
+    - ttl1.patch.eidos.com
+    - ttl2.patch.eidos.com
+    - ttl3.patch.eidos.com
+  answer: "203.0.113.10"

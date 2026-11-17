@@ -1,0 +1,9 @@
+#!/bin/sh
+# Match Angelware's Docker-hosted, pinned Go toolchain.
+set -eu
+cd "$(dirname "$0")/.."
+mkdir -p .cache/go
+exec docker run --rm -i --network none --security-opt label=disable -u "$(id -u):$(id -g)" \
+  -v "$PWD":/src -w /src -v "$PWD/.cache/go":/cache \
+  -e GOCACHE=/cache/build -e GOMODCACHE=/cache/mod -e GOFLAGS=-buildvcs=false \
+  "${QUETZAL_GO_IMAGE:-golang:1.27.4-alpine}" go "$@"

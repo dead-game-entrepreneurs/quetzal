@@ -1,0 +1,35 @@
+name: quetzal
+
+services:
+  quetzal:
+    build: .
+    image: quetzal:local
+    restart: unless-stopped
+    # Preserve observed peer addresses for registration and native NAT traversal.
+    network_mode: host
+    user: "${QUETZAL_UID:-1000}:${QUETZAL_GID:-1000}"
+    environment:
+      QUETZAL_BIND: ${QUETZAL_BIND:-127.0.0.1}
+      QUETZAL_PUBLIC_IP: ${QUETZAL_PUBLIC_IP:-${QUETZAL_BIND:-127.0.0.1}}
+      QUETZAL_HTTP_PORT: ${QUETZAL_HTTP_PORT:-8082}
+      QUETZAL_STATE_DIR: /data/state
+      QUETZAL_CAPTURE_DIR: ${QUETZAL_CAPTURE_DIR:-}
+      QUETZAL_LOG_LEVEL: ${QUETZAL_LOG_LEVEL:-info}
+      QUETZAL_RELAY_MODE: ${QUETZAL_RELAY_MODE:-adaptive}
+      QUETZAL_RELAY_FIRST_PORT: ${QUETZAL_RELAY_FIRST_PORT:-30200}
+      QUETZAL_RELAY_LAST_PORT: ${QUETZAL_RELAY_LAST_PORT:-30327}
+    volumes:
+      - ./data:/data:Z
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD", "/quetzal", "-healthcheck"]
+      interval: 10s
+      timeout: 4s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
