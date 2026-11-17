@@ -196,3 +196,14 @@ Preserve the Ghidra project and private evidence in the sibling `tdu-server`
 workspace. Quetzal never loads that workspace, an ISO or game executable at
 runtime. No DNS, game-file or existing revival-service changes are performed by
 starting this adapter.
+
+## First retail startup correction
+
+The first tester completed account login and registration but stalled before the
+native master exchange. The missing initial NAT/public-URL probe is now answered
+on the existing secure UDP listener. It uses a separate checksum from RPC and a
+raw UDP response; see [the recovered exchange](nat-probe.md). No additional port
+or game patch is required. The startup friend refresh also has its recovered
+read-only [roster response](social.md); friendship mutations remain unsupported.
+After this server update, fresh-boot or fully reconnect the game so its expired
+public-URL job starts again. Retail progression still needs tester confirmation.

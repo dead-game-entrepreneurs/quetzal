@@ -1,0 +1,56 @@
+{
+  "elfSHA256": "620ea714b1dfd2d003a9791e5fabc2e8c9f1f6ac5c908f5873cd7e54972c7bf5",
+  "scope": "Real method10 request builder, scalar/bool/SDK String primitives, row reader and empty-list traversal; synthetic inputs, no tester capture",
+  "requests": [
+    {
+      "entrypoint": "0x1f9750",
+      "filter": 0,
+      "flag": 0,
+      "methodAndArgsHex": "0a0000000000",
+      "argsHex": "0000"
+    },
+    {
+      "entrypoint": "0x1f9750",
+      "filter": 1,
+      "flag": 1,
+      "methodAndArgsHex": "0a0000000101",
+      "argsHex": "0101"
+    },
+    {
+      "entrypoint": "0x1f9750",
+      "filter": 2,
+      "flag": 0,
+      "methodAndArgsHex": "0a0000000200",
+      "argsHex": "0200"
+    },
+    {
+      "entrypoint": "0x1f9750",
+      "filter": 3,
+      "flag": 1,
+      "methodAndArgsHex": "0a0000000301",
+      "argsHex": "0301"
+    },
+    {
+      "entrypoint": "0x1f9750",
+      "filter": 255,
+      "flag": 1,
+      "methodAndArgsHex": "0a000000ff01",
+      "argsHex": "ff01"
+    }
+  ],
+  "row": {
+    "entrypoint": "0x1f8f80",
+    "wireHex": "443322110400426565007fddccbbaa07007374617465ff00",
+    "pid": 287454020,
+    "nameHex": "426565",
+    "relationship": 127,
+    "details": 2864434397,
+    "statusHex": "7374617465ff"
+  },
+  "emptyList": {
+    "entrypoint": "0x1f9f60",
+    "wireHex": "00000000",
+    "consumed": 4,
+    "count": 0
+  }
+}

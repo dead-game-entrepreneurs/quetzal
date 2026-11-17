@@ -35,11 +35,21 @@ type OutboundMessage struct {
 	Peer    Peer
 	Payload []byte
 }
+
+// UserDatagramHandler handles a checksum-validated, connectionless USER packet.
+// It grants no connected peer or RPC/account authority. The reply is a complete
+// datagram: some adapters require a raw reply to a PRUDP-framed request. A nil
+// reply means drop; responses go only to the observed source. Titles opt in.
+type UserDatagramHandler func(context.Context, netip.AddrPort, Packet) ([]byte, error)
+
 type Options struct {
-	Bind         netip.AddrPort
-	Handler      Handler
-	Log          *slog.Logger
-	ChecksumSeed byte
+	Bind        netip.AddrPort
+	Handler     Handler
+	UserHandler UserDatagramHandler
+	// USER streams can have a separate checksum key from connected RPC streams.
+	UserChecksumSeed byte
+	Log              *slog.Logger
+	ChecksumSeed     byte
 	// Conn optionally supplies an application-owned, prebound socket.
 	Conn *net.UDPConn
 	// OpaquePayload captures application data without assuming TDU's transforms.

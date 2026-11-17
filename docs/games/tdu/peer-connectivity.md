@@ -92,9 +92,11 @@ PRUDP socket for native traversal traffic. The path is:
 The last callback takes the engine UDP socket from
 `*(game+0x5c)+0x5c` and sends the NAT-engine bytes directly to the selected
 StationURL address/port. Its adapter header accessor `0x245310` exposes four
-bytes `cd 80 00 00`. The complete receive-demultiplexing path and all NAT-engine
-message layouts still need closure; that four-byte observation alone is not a
-complete server protocol.
+bytes `cd 80 00 00`. The initial public-URL exchange is now recovered: a
+stream-7 PRUDP USER probe requires a raw header/opcode/CString reply on the engine
+socket. Its retail receive/callback path has been native-executed; see
+[public endpoint discovery](nat-probe.md). Later peer-traversal messages are
+separate and still need live coverage.
 
 Quetzal shares reliable Quazal transport and protocol-3 probe handlers with
 25 to Life; TDU uses its own method-11/2 row layout. TDU supplies title callbacks to share those transports while resolving native
@@ -205,8 +207,8 @@ before joining a Drive-In session. These tests do not establish completed retail
 peer association or exchange of driving state.
 
 Private evidence remains in sibling `tdu-server/work/authentication/ps2/peer-*`
-and gameplay browser/getter queries. The remaining decisive checks are the custom
-NAT receive path, a stock traversal request/result, fresh startup and two stock
+and gameplay browser/getter queries. The remaining decisive checks are fresh startup after public-URL discovery,
+peer traversal request/results and two stock
 clients completing EncKey/peer login using real NAT endpoints. Proxy NAT-class
 controls remain distinct; guessed alternate probe sources or an arbitrary relay
 are not implemented.

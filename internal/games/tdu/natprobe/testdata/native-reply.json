@@ -1,0 +1,26 @@
+{
+  "provenance": "Retail rawUDP demux244750 ->21cf30 ->21bb60 opcode02 ->native JobGetPublicURL callback21f7c0, with framework buffer/allocation/URL-property/context stubs; no auth capture",
+  "entries": [
+    {
+      "name": "native-little",
+      "replyHex": "cd800000027564703a2f616464726573733d3139382e35312e3130302e32333b706f72743d3831323200",
+      "demuxAccepted": 1,
+      "jobCompleted": true,
+      "storedURL": "udp:/address=198.51.100.23;port=8122;RVCID=4001"
+    },
+    {
+      "name": "native-swapped",
+      "replyHex": "80cd0000027564703a2f616464726573733d3139382e35312e3130302e32333b706f72743d3831323200",
+      "demuxAccepted": 1,
+      "jobCompleted": true,
+      "storedURL": "udp:/address=198.51.100.23;port=8122;RVCID=4001"
+    },
+    {
+      "name": "incorrect-user-envelope",
+      "replyHex": "71710500027564703a2f616464726573733d3139382e35312e3130302e32333b706f72743d3831323200",
+      "demuxAccepted": 0,
+      "jobCompleted": false,
+      "storedURL": null
+    }
+  ]
+}

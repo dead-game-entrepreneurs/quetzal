@@ -89,6 +89,7 @@ The recovered Quazal IDs are concrete client registrations:
 | --- | --- |
 | 10 | Ticket-granting/login and service-ticket acquisition |
 | 11 | Secure connection registration and StationURL exchange |
+| 20 | Read-only friend roster refresh; currently an explicit empty relationship state |
 | 25 | Account management; signup temporarily logs in as guest |
 | 102 | Challenge store |
 | 103 | Event statistics |

@@ -71,6 +71,7 @@ Tests exercise two synthetic drivers over real UDP and selected retail routines
 in native-code harnesses. **This is not yet a confirmed playable revival.** The
 stock clients own driving and race simulation. See the
 [TDU testing guide](docs/games/tdu/testing.md),
+[public-endpoint startup notes](docs/games/tdu/nat-probe.md),
 [run guide](docs/games/tdu/running.md) and
 [protocol map](docs/games/tdu/online-map.md).
 

@@ -14,8 +14,10 @@ import (
 	"github.com/princebyyourlogic/quetzal/internal/games/tdu/connectivity"
 	"github.com/princebyyourlogic/quetzal/internal/games/tdu/ednet"
 	"github.com/princebyyourlogic/quetzal/internal/games/tdu/nativeproxy"
+	"github.com/princebyyourlogic/quetzal/internal/games/tdu/natprobe"
 	"github.com/princebyyourlogic/quetzal/internal/games/tdu/presence"
 	"github.com/princebyyourlogic/quetzal/internal/games/tdu/sessionmaster"
+	"github.com/princebyyourlogic/quetzal/internal/games/tdu/social"
 	"github.com/princebyyourlogic/quetzal/internal/games/tdu/titledata"
 	"github.com/princebyyourlogic/quetzal/internal/protocol/prudp"
 	"github.com/princebyyourlogic/quetzal/internal/protocol/quazal"
@@ -111,6 +113,12 @@ func Definition(log *slog.Logger, c Config, key quazalcrypto.Key) (game.Definiti
 	if err != nil {
 		return game.Definition{}, fmt.Errorf("TDU accounts: %w", err)
 	}
+	// TDU has no relationship mutation service yet, so its actual roster is
+	// empty. The source-backed reader can accept a persistent roster later.
+	friends, err := social.New(store, func(uint32, social.Query) ([]social.Friend, error) { return nil, nil })
+	if err != nil {
+		return game.Definition{}, err
+	}
 	titleStore, err := titledata.Open(filepath.Join(c.StateDir, "title-data.json"))
 	if err != nil {
 		return game.Definition{}, fmt.Errorf("TDU title data: %w", err)
@@ -162,6 +170,9 @@ func Definition(log *slog.Logger, c Config, key quazalcrypto.Key) (game.Definiti
 					if request.Protocol == 11 && request.Method == 2 {
 						return links.HandleRPC(peer, pid, request)
 					}
+					if request.Protocol == 20 {
+						return friends.Handle(pid, request)
+					}
 					if request.Protocol == 102 || request.Protocol == 103 {
 						return titleService.Handle(pid, request)
 					}
@@ -190,7 +201,7 @@ func Definition(log *slog.Logger, c Config, key quazalcrypto.Key) (game.Definiti
 			if err != nil {
 				return nil, err
 			}
-			secure, err := prudp.New(prudp.Options{Bind: sockets[1].LocalAddr().(*net.UDPAddr).AddrPort(), Conn: sockets[1], ChecksumSeed: 0xbe, Handler: secureHandler, Log: log, Observe: observe})
+			secure, err := prudp.New(prudp.Options{Bind: sockets[1].LocalAddr().(*net.UDPAddr).AddrPort(), Conn: sockets[1], ChecksumSeed: 0xbe, Handler: secureHandler, UserHandler: natprobe.Handle, UserChecksumSeed: 0, Log: log, Observe: observe})
 			if err != nil {
 				return nil, err
 			}

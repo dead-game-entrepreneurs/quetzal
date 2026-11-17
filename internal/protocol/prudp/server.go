@@ -176,11 +176,19 @@ func (s *Server) Serve(ctx context.Context) error {
 			}
 			// A bounded datagram may carry several explicitly sized frames.
 			for offset, frames := 0, 0; offset < n && frames < 128; frames++ {
-				p, used, e := ParseFrame(buf[offset:n], s.opts.ChecksumSeed)
+				checksumSeed := s.opts.ChecksumSeed
+				if s.opts.UserHandler != nil && n-offset >= 3 && buf[offset+2]&7 == USER {
+					checksumSeed = s.opts.UserChecksumSeed
+				}
+				p, used, e := ParseFrame(buf[offset:n], checksumSeed)
 				if e != nil {
 					break
 				}
 				offset += used
+				if p.Type == USER {
+					s.receiveUser(ctx, addr, p)
+					continue
+				}
 				s.receive(ctx, addr, p, now)
 			}
 		}
@@ -190,6 +198,30 @@ func (s *Server) Serve(ctx context.Context) error {
 			return s.observeErr
 		}
 	}
+}
+
+// Connectionless USER traffic never enters the reliable RPC peer state machine.
+func (s *Server) receiveUser(ctx context.Context, source netip.AddrPort, packet Packet) {
+	if s.opts.UserHandler == nil {
+		return
+	}
+	reply, err := s.opts.UserHandler(ctx, source, packet)
+	if err != nil {
+		s.opts.Log.Debug("PRUDP USER request rejected", "remote", source, "source_stream", packet.Source, "destination_stream", packet.Destination, "reason", err.Error())
+		return
+	}
+	if len(reply) == 0 {
+		return
+	}
+	if len(reply) > min(s.opts.MaxMessageSize, 65507) {
+		s.opts.Log.Debug("PRUDP USER reply rejected", "remote", source, "reason", "reply exceeds datagram bounds")
+		return
+	}
+	if err := s.write(source, reply); err != nil {
+		s.opts.Log.Debug("PRUDP USER reply failed", "remote", source, "reason", err.Error())
+		return
+	}
+	s.opts.Log.Debug("PRUDP USER request completed", "remote", source, "local_port", s.Addr().Port(), "source_stream", packet.Source, "destination_stream", packet.Destination, "reply_bytes", len(reply))
 }
 
 func (s *Server) cookie(addr netip.AddrPort) uint32 {
