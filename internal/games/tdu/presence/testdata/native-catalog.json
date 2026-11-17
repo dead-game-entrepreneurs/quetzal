@@ -1,0 +1,13 @@
+{
+  "provenance": "Retail 45f410 filtered the user-owned island SPTA table; 303510 executed through mission-count header store; 3033b0 returned the combined active catalog size",
+  "elfSHA256": "620ea714b1dfd2d003a9791e5fabc2e8c9f1f6ac5c908f5873cd7e54972c7bf5",
+  "islandBankSHA256": "dd20967bee3e5287e1b149237996f68b4908db3318a5ba992eb537e4605d74b6",
+  "missionsSHA256": "66921a94191bf48cc78f2a3b639d2d8d68eb1b4a0effd0a91167c8b7607fa97a",
+  "sourceSpots": 407,
+  "excludedType7": 197,
+  "baseCount": 210,
+  "missionCount": 238,
+  "combinedCount": 448,
+  "aggregateIndex": 448,
+  "densityCells": 449
+}

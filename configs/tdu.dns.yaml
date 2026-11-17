@@ -1,0 +1,6 @@
+# Example rule for revive-dns. Preserve the existing DNAS forwarding rules.
+# TDU is experimental; this redirect does not establish completed retail startup.
+- service: quetzal-tdu
+  names:
+    - tdulive.quazal.net
+  answer: "203.0.113.10"

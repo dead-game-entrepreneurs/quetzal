@@ -1,0 +1,41 @@
+{
+  "build": "US PS2 SLUS-214.90, SYSTEM.CNF VER 1.01",
+  "known_main_build": true,
+  "files": [
+    {
+      "path": "SYSTEM.CNF",
+      "size": 55,
+      "sha256": "954767c50e9cd6352711bca11777db3cfaddd3b3b58238f7d430f196b0c17dcb"
+    },
+    {
+      "path": "SLUS_214.90",
+      "size": 4658176,
+      "sha256": "620ea714b1dfd2d003a9791e5fabc2e8c9f1f6ac5c908f5873cd7e54972c7bf5"
+    },
+    {
+      "path": "NETNTSC.ELF",
+      "size": 4817944,
+      "sha256": "7bfd0663eadec4ca8167fd0f5b0a675bcdc3d27ff1ff2bf3baaf041ebdd96b9a"
+    },
+    {
+      "path": "OVERLAYS/MAINGAME.BIN",
+      "size": 1338752,
+      "sha256": "9005405e28d23734d01c6fbc0c8e1963096d8c690f7ed40401ec760f4554a1db"
+    },
+    {
+      "path": "IOP/QNET.IRX",
+      "size": 14708,
+      "sha256": "23b3aaa1e6d2d87914d1c9d7b364aa6d3a5e8410ab77956447179c9e5c27d0b4"
+    },
+    {
+      "path": "IOP/TWOFISH.IRX",
+      "size": 11360,
+      "sha256": "8a3b10cbe03d7f8a5e83136bfdd28d366ac6c64e8fa6d0253746b5bc5db00a94"
+    },
+    {
+      "path": "IOP/TWOFISHT.IRX",
+      "size": 11280,
+      "sha256": "f26121ed73e6406ec0aed836f610a6086023eec4ad356e8df91c91983d6418f4"
+    }
+  ]
+}

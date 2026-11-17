@@ -1,4 +1,5 @@
-// Adapted from sibling tdu-server; title differences are documented in docs/games/25tolife/analysis.md.
+// Package quazal provides shared Rendez-Vous authentication and secure services.
+// Title-specific RPCs and endpoint policies are supplied through Options.
 package quazal
 
 import (
@@ -38,8 +39,15 @@ type Options struct {
 	Now                 func() time.Time
 	TicketTTL           time.Duration
 	ValidateAccountData func(public, private AnyData) error
-	// GameRPC is called only for a registered, ticket-proven named account.
-	GameRPC               func(peer prudp.Peer, pid uint32, request Request) ([]byte, error)
+	// RegisteredURLScheme selects the client's returned StationURL scheme.
+	// Empty defaults to prudp; prudps is available for titles that require it.
+	RegisteredURLScheme string
+	// GameRPC requires registration and ticket proof. Guests are denied unless
+	// AllowGuestGameRPC explicitly allows that operation.
+	GameRPC func(peer prudp.Peer, pid uint32, request Request) ([]byte, error)
+	// AllowGuestGameRPC applies only to title RPCs handled by GameRPC, after
+	// registration and ticket proof. Nil preserves named-account-only access.
+	AllowGuestGameRPC     func(request Request) bool
 	GameDisconnect        func(peer prudp.Peer, pid uint32)
 	GameStatus            func(peer prudp.Peer, pid uint32, status string)
 	GameRegistered        func(peer prudp.Peer, pid uint32, url string)
@@ -103,6 +111,12 @@ func New(options Options) (*Service, error) {
 	options.PublicIP = options.PublicIP.Unmap()
 	if !options.PublicIP.Is4() || options.PublicIP.IsUnspecified() {
 		return nil, errors.New("quazal: usable public IPv4 address required")
+	}
+	if options.RegisteredURLScheme == "" {
+		options.RegisteredURLScheme = "prudp"
+	}
+	if options.RegisteredURLScheme != "prudp" && options.RegisteredURLScheme != "prudps" {
+		return nil, errors.New("quazal: registered StationURL scheme must be prudp or prudps")
 	}
 	if options.Role == Auth && options.SecurePort == 0 {
 		return nil, errors.New("quazal: auth role requires the advertised secure port")
@@ -219,16 +233,27 @@ func (s *Service) Handle(_ context.Context, peer prudp.Peer, wire []byte) ([][]b
 		return [][]byte{append([]byte(nil), old.reply...)}, nil
 	}
 	payload, err := s.dispatch(peer, state, request)
+	requestLog := s.options.Log.With(
+		"role", s.options.Role,
+		"peer", peer.ID,
+		"remote", peer.Addr,
+		"local_port", peer.LocalPort,
+		"pid", state.pid,
+		"cid", state.connectionID,
+		"protocol", request.Protocol,
+		"method", request.Method,
+		"call_id", request.CallID,
+	)
 	var reply []byte
 	if err != nil {
-		s.options.Log.Warn("quazal RPC rejected", "role", s.options.Role, "protocol", request.Protocol, "method", request.Method, "pid", state.pid, "reason", err.Error())
+		requestLog.Warn("quazal RPC rejected", "reason", err.Error())
 		reply = ErrorReply(request, GenericFailure)
 	} else {
 		reply, err = SuccessReply(request, payload)
 		if err != nil {
 			return nil, err
 		}
-		s.options.Log.Info("quazal RPC completed", "role", s.options.Role, "protocol", request.Protocol, "method", request.Method, "pid", state.pid)
+		requestLog.Info("quazal RPC completed")
 	}
 	if len(state.order) >= 128 {
 		delete(state.cache, state.order[0])
@@ -261,7 +286,10 @@ func (s *Service) dispatch(peer prudp.Peer, state *peerState, request Request) (
 		return s.requestProbes(peer, state, request.Args)
 	default:
 		if s.options.Role == Secure && s.options.GameRPC != nil {
-			if !state.proof || !state.registered || state.guest {
+			if !state.proof || !state.registered {
+				return nil, errors.New("game RPC requires registered account proof")
+			}
+			if state.guest && (s.options.AllowGuestGameRPC == nil || !s.options.AllowGuestGameRPC(request)) {
 				return nil, errors.New("game RPC requires registered account proof")
 			}
 			return s.options.GameRPC(peer, state.pid, request)
@@ -417,10 +445,9 @@ func (s *Service) register(peer prudp.Peer, state *peerState, args []byte) ([]by
 		}
 	}
 	state.registered = true
-	// This is the client's public native StationURL, not the secure backend
-	// service URL. Retail registration advertises prudp; changing it to prudps
-	// selects the ticket-manager connection factory for later peer/session joins.
-	url := fmt.Sprintf("prudp:/address=%s;port=%d;stream=3;sid=%d;PID=%d;CID=%d;type=2", peer.Addr.Addr(), peer.Addr.Port(), peer.SourceStream&15, state.pid, state.connectionID)
+	// This is the client's observed public StationURL. The scheme is title
+	// policy: prudps selects the ticket-manager connection factory on clients.
+	url := fmt.Sprintf("%s:/address=%s;port=%d;stream=3;sid=%d;PID=%d;CID=%d;type=2", s.options.RegisteredURLScheme, peer.Addr.Addr(), peer.Addr.Port(), peer.SourceStream&15, state.pid, state.connectionID)
 	state.stationURL = url
 	if !state.guest && s.options.GameRegistered != nil {
 		s.options.GameRegistered(peer, state.pid, url)

@@ -1,0 +1,156 @@
+{
+  "provenance": "Actual US retail Open/upload/Get senders and resource reply consumer with real edNet stream primitives in limited EE-to-MIPS64 harness; synthetic inputs only",
+  "elfSHA256": "620ea714b1dfd2d003a9791e5fabc2e8c9f1f6ac5c908f5873cd7e54972c7bf5",
+  "requests": [
+    {
+      "name": "open",
+      "entrypoint": "0x15bfd0",
+      "actionHex": "3be20100000000000d6e6574636f6e6669672e786d6c0000000000"
+    },
+    {
+      "name": "upload",
+      "entrypoint": "0x15be00",
+      "actionHex": "3be27f11223344000b666978747572652e62696e0155667788"
+    },
+    {
+      "name": "get",
+      "entrypoint": "0x15bb20",
+      "actionHex": "d9760000000100000000"
+    },
+    {
+      "name": "get",
+      "entrypoint": "0x15bb20",
+      "actionHex": "d9761122334455667788"
+    }
+  ],
+  "replies": [
+    {
+      "name": "open-success",
+      "entrypoint": "0x15b5d0",
+      "actionHex": "b71500000000010000000b0000000a000003e8",
+      "consumed": 19,
+      "state": 1,
+      "error": 0,
+      "fileID": 1,
+      "total": 11,
+      "offset": 0,
+      "stage": 1,
+      "resumeAt": 0,
+      "retries": 10,
+      "timeout": 1000,
+      "copiedHex": ""
+    },
+    {
+      "name": "open-error",
+      "entrypoint": "0x15b5d0",
+      "actionHex": "b7150100000000000000000000000000000000",
+      "consumed": 19,
+      "state": 3,
+      "error": 1,
+      "fileID": 0,
+      "total": 11,
+      "offset": 0,
+      "stage": 0,
+      "resumeAt": 0,
+      "retries": 0,
+      "timeout": 0,
+      "copiedHex": ""
+    },
+    {
+      "name": "get-success",
+      "entrypoint": "0x15b5d0",
+      "actionHex": "49a30000000001000000000000000500aaff7e61",
+      "consumed": 20,
+      "state": 1,
+      "error": 0,
+      "fileID": 0,
+      "total": 11,
+      "offset": 5,
+      "stage": 1,
+      "resumeAt": 5000,
+      "retries": 10,
+      "timeout": 1000,
+      "copiedHex": "00aaff7e61"
+    },
+    {
+      "name": "get-wait",
+      "entrypoint": "0x15b5d0",
+      "actionHex": "49a302000000010000000012340000",
+      "consumed": 13,
+      "state": 1,
+      "error": 0,
+      "fileID": 0,
+      "total": 0,
+      "offset": 0,
+      "stage": 3,
+      "resumeAt": 9660,
+      "retries": 10,
+      "timeout": 1000,
+      "copiedHex": ""
+    },
+    {
+      "name": "get-error",
+      "entrypoint": "0x15b5d0",
+      "actionHex": "49a301000000010000000000000000",
+      "consumed": 13,
+      "state": 3,
+      "error": 1,
+      "fileID": 0,
+      "total": 11,
+      "offset": 0,
+      "stage": 0,
+      "resumeAt": 0,
+      "retries": 10,
+      "timeout": 1000,
+      "copiedHex": ""
+    },
+    {
+      "name": "get-final",
+      "entrypoint": "0x15b5d0",
+      "actionHex": "49a30000000001000000060000000500aaff7e61",
+      "consumed": 20,
+      "state": 3,
+      "error": 0,
+      "fileID": 0,
+      "total": 11,
+      "offset": 11,
+      "stage": 0,
+      "resumeAt": 0,
+      "retries": 10,
+      "timeout": 1000,
+      "copiedHex": "00aaff7e61"
+    },
+    {
+      "name": "get-complete",
+      "entrypoint": "0x15b5d0",
+      "actionHex": "49a30000000001000000000000000b00aaff7e615800aaff7e61",
+      "consumed": 26,
+      "state": 3,
+      "error": 0,
+      "fileID": 0,
+      "total": 11,
+      "offset": 11,
+      "stage": 0,
+      "resumeAt": 0,
+      "retries": 10,
+      "timeout": 1000,
+      "copiedHex": "00aaff7e615800aaff7e61"
+    },
+    {
+      "name": "get-unknown",
+      "entrypoint": "0x15b5d0",
+      "actionHex": "49a301112233445566778800000000",
+      "consumed": 13,
+      "state": 3,
+      "error": 1,
+      "fileID": 0,
+      "total": 11,
+      "offset": 0,
+      "stage": 0,
+      "resumeAt": 0,
+      "retries": 10,
+      "timeout": 1000,
+      "copiedHex": ""
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "provenance": "Retail US SLUS_214.90 actual sender functions and D572 wrapper executed in limited EE-to-MIPS64 harness; transport append captured at136880",
+  "elfSHA256": "620ea714b1dfd2d003a9791e5fabc2e8c9f1f6ac5c908f5873cd7e54972c7bf5",
+  "entries": [
+    {
+      "name": "track",
+      "entrypoint": "0x3bd670",
+      "frameHex": "d572002a42bb000000010000000200000005000000103f8000004040000040000000000000001234567800000003"
+    },
+    {
+      "name": "map",
+      "entrypoint": "0x3bd8d0",
+      "frameHex": "d572000455ae0002"
+    },
+    {
+      "name": "session-density",
+      "entrypoint": "0x3bd9d0",
+      "frameHex": "d5720006510b00000002"
+    },
+    {
+      "name": "update",
+      "entrypoint": "0x460630",
+      "frameHex": "d572003789ee000000010000000200014100023f80000040000000112233445566778800000005fffffffa01020304050607080000000740400000"
+    },
+    {
+      "name": "track-friends",
+      "entrypoint": "0x3bd670",
+      "frameHex": "d572003242bb000000010000000200000005000000103f8000004040000040000000000000001234567800000003000000090000000a"
+    }
+  ]
+}

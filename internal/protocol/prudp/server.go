@@ -119,7 +119,16 @@ func (s *Server) Serve(ctx context.Context) error {
 	if !s.serving.CompareAndSwap(false, true) {
 		return errors.New("PRUDP Serve called more than once")
 	}
+	// Cancellation may win before the application's Serve goroutine starts.
+	// Release constructor-owned sockets and preserve the cancellation result.
+	if err := ctx.Err(); err != nil {
+		_ = s.Close()
+		return err
+	}
 	if s.closed.Load() {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		return ErrClosed
 	}
 	done := make(chan struct{})

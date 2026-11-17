@@ -1,8 +1,8 @@
 # Quetzal architecture
 
 Quetzal replaces Quazal online services for unmodified retail clients. The
-first adapter targets 25 to Life on PS2. Real-console compatibility is a design
-requirement; client patches and emulator-only changes are outside the project.
+retail-tested adapter targets 25 to Life on PS2; an experimental TDU PS2 adapter
+shares the runtime. Real-console compatibility is a design requirement; client patches and emulator-only changes are outside the project.
 The layout follows Angelware while keeping Quazal framing, service numbers,
 cryptography and traversal independent from DemonWare.
 
@@ -12,24 +12,46 @@ cryptography and traversal independent from DemonWare.
 | --- | --- |
 | `cmd/quetzal` | Process startup and explicit game registration |
 | `internal/app` | Configuration, listeners, state ownership and shutdown |
-| `internal/game` | Game definitions and auxiliary service contracts |
+| `internal/game` | Tenant definitions, grouped/per-socket service factories, HTTP mounts and lazy UDP reservations |
 | `internal/protocol/prudp` | Framing, checksums, connection cookies, reliability, retries, reassembly and raw/LZO payloads |
 | `internal/protocol/quazal` | RMC, authentication, service tickets, secure registration and account persistence |
 | `internal/quazalcrypto` | Retail key derivation and authenticated ticket containers |
 | `internal/games/ttl25` | Eidos records, matchmaking, social operations, statistics and native relay policy |
+| `internal/games/tdu` | TDU tenant composition, native transport, sessions/presence, peer admission and title data |
+| `internal/state` | Private keys, state files and exclusive tenant locks |
 | `internal/capture` | Optional bounded packet recording |
 
-Shared packages do not import concrete games. Game-specific codecs and policies
-stay with their adapter; additional shared services should be extracted when a
-second title demonstrates reuse. Quetzal currently enables one game, rather than
-claiming drop-in support for all Quazal titles.
+Shared packages do not import concrete games. Verified transport, ticket,
+registration and account primitives are reused with explicit title policy.
+TDU's access key/checksum seed and `prudps` registration policy remain separate
+from 25 to Life's plain-wrapper/backend policy. Native proxy and peer cryptography
+live entirely within the TDU adapter. Sharing Quazal does not make the titles'
+gameplay protocols interchangeable.
 
 ## Runtime ownership
 
-The entry point acquires an exclusive state lock and loads or creates the
-private service principal key before constructing the game. The app binds all
-listeners before announcing readiness. Startup failures close previously
-opened sockets; cancellation closes transports, HTTP and auxiliary services.
+`QUETZAL_GAMES` selects `25tolife`, `tdu`, or both; the default stays `25tolife`.
+Unknown and duplicate keys fail before tenant state is created. Only enabled
+adapters load their settings, stores and keys. Each tenant owns a separate state
+lock and principal key.
+
+`app.RunTenants` validates every static UDP listener and lazy `ReservedUDP` range
+before binding. It binds all tenant sockets and shared HTTP before invoking
+factories or starting services. `Definition.NewUDP` supports an independent
+service per socket; `NewServices` receives the complete ordered socket set for
+protocols sharing endpoint state. TDU receives auth/secure/master/proxy sockets
+and creates two PRUDP services plus one native service using both app-bound
+native sockets. Factories do not start background listeners.
+
+Any startup failure closes acquired sockets and services. Cancellation or a
+runtime failure stops the whole instance, joins handlers and only then releases
+state locks. The app supplies each tenant's capture observer to its transports;
+requested capture failures stop service rather than silently dropping evidence.
+
+25 to Life reserves its configured native relay pool only in relay/adaptive
+mode. Its historical 30200–30327 pool overlaps TDU's 30200/30201 listeners.
+Combined deployments must explicitly choose another pool, such as 30400–30527;
+validation rejects conflicts and performs no automatic remapping.
 
 The PRUDP transport supplies endpoint-bound SYN cookies, CONNECT admission,
 reliable acknowledgements/retries and bounded reassembly. A fresh challenge and
@@ -41,27 +63,35 @@ reused UDP endpoint. Failed proofs leave the active connection intact.
 Ticket and nonce containers retain the SDK's authenticated RC4/HMAC format.
 A transport connection alone grants no account authority.
 
-Game callbacks receive the authenticated peer generation and PID. Account and
-profile writes bind to that identity. Rooms and participation are ephemeral and
+25 to Life account callbacks receive the authenticated peer generation and PID.
+Account and profile writes bind to that identity. Rooms and participation are ephemeral and
 owned by the exact connection, so another connection using the same PID cannot
 remove its room. Searches evaluate typed fields; incoming SQL-like text is never
 executed against a database. Unknown methods fail explicitly.
 
 ## Persistence
 
-The versioned JSON stores live under `data/state/` by default. Account names,
-password-derived initial hashes, profiles and contact fields are private.
+25 to Life keeps its existing versioned JSON files directly under
+`QUETZAL_STATE_DIR` (`data/state/` by default). TDU uses
+`QUETZAL_STATE_DIR/tenants/tdu/`, even when it is the only enabled game. Each
+location has its own `principal.key`, accounts and lock; TDU additionally persists
+`p2p.key` for its peer-wrapper resource and atomic `title-data.json` for reported
+statistics and challenge files. Enabling TDU does not move or merge
+25 to Life's working state.
+
+25 to Life account names, password-derived initial hashes, profiles and contact
+fields are private.
 `community.json` contains friendships, blocks, clan membership/roles, notices,
 preferences, statistics and report receipts. `ranking.json` stores the shared
 Nonladder ranking definition. The random `principal.key` persists across
 restarts. Private files use mode 0600 and the state directory uses mode 0700.
 
 Mutations write a temporary file, sync and atomically rename it before returning
-success. The process-wide state lock prevents concurrent writers. Back up the
-entire state directory while the server is stopped. No runtime data belongs in
+success. Each tenant state lock prevents concurrent writers to that store. Back
+up the entire state directory while the server is stopped. No runtime data belongs in
 Git. See [deployment](deployment.md).
 
-## Social and statistics services
+## 25 to Life social and statistics services
 
 The adapter implements the 39 documented title operations in protocol 101,
 plus the supported SDK methods listed in the
@@ -74,7 +104,7 @@ retain bounded, short-lived reporting authority so the host can leave before
 the joiner's report arrives. That archive grants no browsing or joining access.
 Original scoring formulas remain under investigation.
 
-## Native connectivity
+## 25 to Life native connectivity
 
 Authenticated NAT traversal uses protocol 3/1 and server-initiated 3/2 calls
 on each player's existing reliable connection. The transport drains bounded
@@ -94,13 +124,55 @@ ACKs; no new handshake or mapping is admitted. Shutdown, unproved candidates
 and bounded idle expiry close routes immediately. See
 [connectivity](games/25tolife/connectivity.md) for limits and remaining tests.
 
+## TDU native services
+
+TDU defaults to physical UDP 30200/30201 for Quazal auth/secure services and
+8124/8122 for native master/proxy. Logical ports 9000–9004 travel inside the
+encrypted native proxy and create no extra sockets. Protocol 104/1 supplies the
+bootstrap IPv4. The master returns both proxy and directory IPv4 addresses; the
+proxy performs signed DH and encrypted transport activation. Native transport
+ownership is scoped to an observed endpoint and a nonreused connection generation.
+Native connection-ID and USERMAP account claims do not independently prove account
+ownership.
+
+The directory advertises implemented endpoints. Resource handlers serve network
+default XML, a no-pending-awards prize policy and a persistent peer-wrapper key.
+SessionMaster owns bounded, expiring session records and reservations. Presence
+owns transient positions and density/nearby queries. Both remove transport-owned
+state on disconnect; reliable native calls receive separate business and generic
+completion datagrams where the retail dispatcher requires them.
+
+TDU-specific secure lookup bridges verified Quazal registrations to live native
+session membership, then initiates direct-peer NAT instructions using native
+engine endpoints. Generic relay forwarding is not enabled. Protocols 102/103
+persist authenticated challenge uploads and reported statistics in the tenant's
+atomic title-data store; native claims cannot write that store. Ranking and
+resource policies are documented replacement-server choices where the original
+algorithm is unknown. Clients retain driving physics and peer gameplay.
+
+Synthetic two-driver UDP tests cover these services together. They do not prove
+retail online entry or a completed race. See the
+[TDU evidence map](games/tdu/online-map.md),
+[session contract](games/tdu/sessionmaster.md),
+[peer admission](games/tdu/peer-connectivity.md) and
+[title services](games/tdu/title-services.md).
+
 ## Diagnostics and validation
 
 JSON logs contain operational metadata. Packet-by-packet metadata uses debug
 logging; raw backend recording is disabled unless a capture directory is set.
-`/healthz` and `/connectivity` expose status and relay counters without account
-fields. Enabled captures are bounded and private, and capture write failures
-stop the service rather than silently losing a requested recording.
+`/healthz` reports all enabled tenants, modes and bound UDP endpoints without
+account fields. Each handler is mounted under `/games/{key}/`; 25 to Life also
+retains `/TTL/` and `/connectivity` for original retail routing and relay counters.
+A single tenant keeps its legacy root HTTP mount. TDU's
+`/games/tdu/connectivity` reports session/player counts and its experimental
+validation status without exposing identities or positions. Health reports
+listening services, not successful retail gameplay.
+
+Multi-tenant captures use a recorder subdirectory per tenant; a single tenant
+keeps the legacy capture directory itself. Enabled captures are bounded and
+private, and capture write failures stop the service rather than silently losing
+a requested recording.
 
 Tests check protocol properties, authority, persistence and independently
 recovered fixtures. The game notes distinguish implemented, statically inferred

@@ -8,5 +8,5 @@ RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/quetzal ./cmd/quet
 FROM scratch
 COPY --from=build /out/quetzal /quetzal
 USER 1000:1000
-EXPOSE 8082/tcp 30120/udp 30121/udp 10100/udp 10105/udp 10110/udp
+EXPOSE 8082/tcp 30120/udp 30121/udp 10100/udp 10105/udp 10110/udp 30200/udp 30201/udp 8124/udp 8122/udp
 ENTRYPOINT ["/quetzal"]

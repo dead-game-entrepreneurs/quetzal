@@ -27,6 +27,7 @@ func Definition(log *slog.Logger, publicIP netip.Addr, stateDir string, key quaz
 	options := quazal.Options{Role: quazal.Auth, PublicIP: publicIP, SecurePort: 30121, ServerPID: 2, PrincipalKey: key, Store: store, Log: log, ValidateAccountData: ValidateAccountData}
 	sessions := newSessions()
 	var auxiliary []game.UDPService
+	var reserved []game.PortRange
 	if len(connectivity) > 1 {
 		return game.Definition{}, fmt.Errorf("only one relay configuration is supported")
 	}
@@ -40,6 +41,7 @@ func Definition(log *slog.Logger, publicIP netip.Addr, stateDir string, key quaz
 				return game.Definition{}, err
 			}
 			sessions.relay = relay
+			reserved = append(reserved, game.PortRange{First: int(connectivity[0].FirstPort), Last: int(connectivity[0].LastPort)})
 			auxiliary = append(auxiliary, relay)
 			options.GameProbeInstructions = relay.drainInstructions
 		}
@@ -106,7 +108,7 @@ func Definition(log *slog.Logger, publicIP netip.Addr, stateDir string, key quaz
 	if err != nil {
 		return game.Definition{}, err
 	}
-	return game.Definition{Key: "25tolife", UDPPorts: []int{30120, 30121, 10100, 10105, 10110}, HTTP: relayDiagnostics(PatchHandler(log), sessions.relay), Auxiliary: auxiliary, Mode: "accounts_experimental",
+	return game.Definition{Key: "25tolife", Game: "25tolife", HTTPPaths: []string{"/TTL/", "/connectivity"}, ReservedUDP: reserved, UDPPorts: []int{30120, 30121, 10100, 10105, 10110}, HTTP: relayDiagnostics(PatchHandler(log), sessions.relay), Auxiliary: auxiliary, Mode: "accounts_experimental",
 		NewUDP: func(conn *net.UDPConn, observe func(string, netip.AddrPort, netip.AddrPort, []byte) error) (game.UDPService, error) {
 			var handler prudp.Handler = auth
 			if conn.LocalAddr().(*net.UDPAddr).Port == 30121 {

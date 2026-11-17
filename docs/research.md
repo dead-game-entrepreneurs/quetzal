@@ -35,3 +35,19 @@ The [build notes](games/25tolife/analysis.md) record executable provenance and
 confirmed behavior. Add wire layouts only after checking request writers,
 reply dispatchers and identity/authority rules. Use synthetic fixtures for
 regressions, never real credentials, account records or full personal captures.
+
+## TDU evidence workspace
+
+TDU's evidence maps and exact US build hashes are in
+[docs/games/tdu](games/tdu/analysis.md), starting with the
+[online architecture map](games/tdu/online-map.md). Its runtime is now the
+Quetzal `tdu` adapter. The historical `tools/research.py`, native-routine harness
+and isolated Ghidra projects remain in the sibling `tdu-server` research workspace.
+TDU notes mark commands requiring that workspace. Preserve its private evidence
+and annotations there; no private binaries, package payloads or captures were
+migrated into this repository. Quetzal never reads that workspace at runtime.
+
+Further TDU research should resolve the initial nonzero directory IPv4 handoff
+before claiming stock online entry, then validate discovery/session/peer admission
+separately from cruising and racing. DNAS continues through the existing working
+revival route and is outside this remaining TDU work.

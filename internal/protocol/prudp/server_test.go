@@ -612,3 +612,27 @@ func TestConcatenatedDatagramAndAssemblyTimeout(t *testing.T) {
 		t.Fatal("unfinished assembly did not expire")
 	}
 }
+
+func TestCancellationBeforeServeReleasesSocket(t *testing.T) {
+	for _, closeFirst := range []bool{false, true} {
+		s, err := New(Options{Bind: netip.MustParseAddrPort("127.0.0.1:0"), Handler: &testHandler{}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { s.Close() })
+		address := s.Addr()
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		if closeFirst {
+			s.Close()
+		}
+		if err := s.Serve(ctx); !errors.Is(err, context.Canceled) {
+			t.Fatalf("closeFirst=%v: canceled startup returned %v", closeFirst, err)
+		}
+		conn, err := net.ListenUDP("udp4", net.UDPAddrFromAddrPort(address))
+		if err != nil {
+			t.Fatal("canceled startup retained its socket", err)
+		}
+		conn.Close()
+	}
+}
