@@ -1,7 +1,6 @@
 package tdu
 
 import (
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -182,10 +181,10 @@ func Definition(log *slog.Logger, c Config, key quazalcrypto.Key) (game.Definiti
 					if len(request.Args) != 0 {
 						return nil, errors.New("TDU bootstrap accepts no arguments")
 					}
+					// The retail output slot reads four raw address bytes, not a
+					// little-endian SDK integer (0x247b10 -> 0x236320).
 					ip := c.PublicIP.As4()
-					var out [4]byte
-					binary.LittleEndian.PutUint32(out[:], binary.BigEndian.Uint32(ip[:]))
-					return out[:], nil
+					return ip[:], nil
 				},
 			}
 			authHandler, err := quazal.New(options)

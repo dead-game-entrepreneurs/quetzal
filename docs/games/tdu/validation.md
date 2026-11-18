@@ -1,7 +1,6 @@
-# TDU backend validation — 2026-11-17
+# TDU backend validation — 2026-11-18
 
-Target: US PS2 SLUS-214.90. Runtime: Quetzal tenant `tdu` on branch
-`codex/tdu-multitenant`. Private disc/Ghidra evidence remains in sibling
+Target: US PS2 SLUS-214.90. Runtime: Quetzal tenant `tdu`. Private disc/Ghidra evidence remains in sibling
 `tdu-server`; the server does not load it.
 
 ## Completed checks
@@ -68,9 +67,10 @@ The optional activity catalog contains only protocol identifiers/indices.
 
 ## Limits
 
-No successful stock-client online entry, two-client cruising or race completion
-has been observed. First retail acceptance should fresh-boot the documented disc,
-retain the existing DNAS route and capture the first unsupported exchange; see
+One local PCSX2 client has completed stock online entry, as reported by the
+operator after the startup corrections below. Two-client cruising, race
+completion, physical consoles and public-network compatibility remain unverified.
+Retain the existing DNAS route and capture the first unsupported exchange; see
 [running](running.md) and [milestones](roadmap.md).
 
 Ranking, resource and activity-count policies are explicit replacement policies
@@ -104,3 +104,24 @@ rule already allows UDP 30200/30201. The actual public DNS resolver has the 25 t
 mapping and lacks tdulive.quazal.net. No remote configuration was changed. See
 [deployment](../../deployment.md#preparing-a-combined-hosted-test) and the private
 `work/deployment/racknerd-readiness.json` audit before rollout.
+
+
+## Local retail startup follow-up
+
+The operator confirmed successful in-game online entry after these fixes:
+
+- Protocol 104/1 returns four raw IPv4 bytes in network order. The previous
+  little-endian scalar reversed the native master destination. A new native
+  fixture executes the response reader through the socket-send boundary, and
+  real-UDP regressions compare two synthetic advertised addresses with it.
+- Configuration Open uses facility 2, selected by the actual retail caller,
+  rather than the constructor's initial facility 1. Native fixtures execute the
+  option/user setters and all three request builders. Regressions fully download
+  generated `netconfig.xml`, `p2pkey` and `prize.xml` while rejecting other
+  facilities, nonzero users and uploads.
+
+The full Go suite, vet, fixture regeneration and local encrypted protocol smoke
+pass. Existing account state is preserved across the local deployment.
+This confirms startup for one local PCSX2 client; it does not validate peer
+movement or races. The connectivity diagnostic's `retail_validated` gameplay
+flag remains false pending that multiplayer acceptance.

@@ -83,7 +83,7 @@ func TestDirectoryOnlyAdvertisesRegisteredServices(t *testing.T) {
 func open(name string, upload byte) []byte {
 	b := make([]byte, 14+len(name))
 	binary.BigEndian.PutUint16(b, OpenRequest)
-	b[2] = 1
+	b[2] = 2
 	binary.BigEndian.PutUint16(b[7:], uint16(len(name)))
 	copy(b[9:], name)
 	b[9+len(name)] = upload
@@ -186,5 +186,28 @@ func TestConfigurationOwnershipAndLimits(t *testing.T) {
 		if _, e := New(o); e == nil {
 			t.Fatalf("accepted %+v", o)
 		}
+	}
+}
+
+func TestResourceOpenScopeRemainsReadOnly(t *testing.T) {
+	service := fixture(t)
+	for _, facility := range []byte{0, 1, 3, 255} {
+		request := open("netconfig.xml", 0)
+		request[2] = facility
+		if _, err := service.ResourceAction(request); !errors.Is(err, ErrUnsupported) {
+			t.Fatalf("facility %d: %v", facility, err)
+		}
+	}
+	for _, user := range []uint32{1, 1000, 0xffffffff} {
+		request := open("netconfig.xml", 0)
+		binary.BigEndian.PutUint32(request[3:], user)
+		if _, err := service.ResourceAction(request); !errors.Is(err, ErrUnsupported) {
+			t.Fatalf("user %d: %v", user, err)
+		}
+	}
+	request := open("netconfig.xml", 0)
+	binary.BigEndian.PutUint32(request[len(request)-4:], 16)
+	if _, err := service.ResourceAction(request); !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("download with upload size: %v", err)
 	}
 }

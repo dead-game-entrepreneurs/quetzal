@@ -41,11 +41,15 @@ def obj(n):
  put(n,a+0x2b8,1);put(n,a+0x9c0,10);put(n,a+0x9c4,1000)
  return a
 
-def request(kind,facility=1,user=0,name='netconfig.xml',file=1,offset=0):
+def request(kind,facility=2,user=0,name='netconfig.xml',file=1,offset=0):
  n=fresh();a=obj(n);frames=[]
  def capture():frames.append(value(n,n.get(4)+0x24));n.ret(0)
  n.hooks[0x12b170]=capture
  put(n,a+8,facility);put(n,a+0x218,user);n.write(a+0x10,name.encode()+b'\0')
+ if kind=='open':
+  # Retail config callers use virtual +0x18(this,1,2), not ctor default 1.
+  put(n,a+8,1);n.run(0x15c190,[a,1,facility]);assert word(n,a+8)==facility
+  n.run(0x1569d0,[a,user]);assert word(n,a+0x218)==user
  if kind=='get':
   put(n,a+0x29c,1);put(n,a+0x2a0,0);put(n,a+700,file);put(n,a+0x2ac,offset);entry=0x15bb20
  elif kind=='upload':put(n,a+0x290,0x55667788);entry=0x15be00
@@ -73,4 +77,4 @@ assert replies[2]['copiedHex']==chunk.hex() and replies[2]['offset']==5 and repl
 assert replies[3]['resumeAt']==5000+0x1234 and replies[3]['stage']==3
 assert replies[4]['state']==3 and replies[4]['error']==1
 assert replies[5]['offset']==11 and replies[5]['state']==3
-print(json.dumps({'provenance':'Actual US retail Open/upload/Get senders and resource reply consumer with real edNet stream primitives in limited EE-to-MIPS64 harness; synthetic inputs only','elfSHA256':'620ea714b1dfd2d003a9791e5fabc2e8c9f1f6ac5c908f5873cd7e54972c7bf5','requests':requests,'replies':replies},indent=2))
+print(json.dumps({'provenance':'Actual US retail Open/upload/Get senders and resource reply consumer with real edNet stream primitives in limited EE-to-MIPS64 harness; synthetic inputs only','elfSHA256':'620ea714b1dfd2d003a9791e5fabc2e8c9f1f6ac5c908f5873cd7e54972c7bf5','requests':requests,'configurationRequests':[dict(request('open',name=name),resource=name) for name in ['netconfig.xml','p2pkey','prize.xml']],'replies':replies},indent=2))

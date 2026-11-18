@@ -1,0 +1,36 @@
+{
+  "provenance": "US SLUS-214.90 retail 0x247b10/raw reader -> 0x1e2c20 -> 0x13aca0 -> 0x1553b0 -> 0x142c60; socket send boundary recorded. Synthetic addresses only.",
+  "limitations": "EE low-word normalization; output-slot selection, buffer storage, clock, semaphores, allocation and text-copy framework stubbed. Socket I/O recorded; no retail session.",
+  "cases": [
+    {
+      "address": "192.0.2.10",
+      "correct": {
+        "wire_hex": "c000020a",
+        "destination": "192.0.2.10",
+        "port": 8124,
+        "master_request_hex": "0000757300001128"
+      },
+      "incorrect_scalar_le": {
+        "wire_hex": "0a0200c0",
+        "destination": "10.2.0.192",
+        "port": 8124,
+        "master_request_hex": "0000757300001128"
+      }
+    },
+    {
+      "address": "203.0.113.77",
+      "correct": {
+        "wire_hex": "cb00714d",
+        "destination": "203.0.113.77",
+        "port": 8124,
+        "master_request_hex": "0000757300001128"
+      },
+      "incorrect_scalar_le": {
+        "wire_hex": "4d7100cb",
+        "destination": "77.113.0.203",
+        "port": 8124,
+        "master_request_hex": "0000757300001128"
+      }
+    }
+  ]
+}

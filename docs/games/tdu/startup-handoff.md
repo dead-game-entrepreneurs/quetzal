@@ -6,6 +6,29 @@ unmapped initial directory handoff. It is verified statically and by limited
 execution of retail routines; a complete stock-client online session remains
 untested. Binary identity and mapping are in [analysis.md](analysis.md).
 
+## Quazal bootstrap address byte order
+
+Protocol 104 / method 1 returns **four raw IPv4 bytes in network order**.
+For `192.0.2.10`, the payload is `c000020a`, not the little-endian integer
+encoding `0a0200c0`. The ordinary RMC envelope remains little-endian.
+
+Retail response dispatcher `0x247b10` calls raw reader `0x236320` /
+`0x236230` and copies the bytes into the output slot without scalar decoding.
+Getter `0x1e2c20`, online-entry conversion `0x13aca0`, connection constructor
+`0x1553b0` and UDP sender `0x142c60` carry that value to the socket address.
+The earlier scalar encoding reverses the actual destination: a local server at
+`192.168.2.141` is advertised to the native connection as `141.2.168.192`.
+This explains successful account creation/registration followed by a timeout
+without a master request arriving at the intended server.
+
+`internal/games/tdu/testdata/native-bootstrap-address.json` records execution
+through those retail routines to the socket-send boundary, using two synthetic
+addresses. The incorrect reversed encodings demonstrably send to different
+hosts. The UDP integration regression compares both advertised addresses with
+these independently consumed bytes. Framework substitutions and reproduction
+are documented beside the fixture. This establishes the address format, not a
+successful retail online session.
+
 ## Master response and directory installation
 
 The eight-byte response contains two four-byte IPv4 addresses in network order:

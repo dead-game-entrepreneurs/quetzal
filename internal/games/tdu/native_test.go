@@ -158,7 +158,7 @@ func (c *nativeClient) call(t *testing.T, port uint16, id uint32, action []byte)
 func nativeOpen(name string) []byte {
 	b := make([]byte, 14+len(name))
 	binary.BigEndian.PutUint16(b, ednet.OpenRequest)
-	b[2] = 1
+	b[2] = 2
 	binary.BigEndian.PutUint16(b[7:], uint16(len(name)))
 	copy(b[9:], name)
 	return b

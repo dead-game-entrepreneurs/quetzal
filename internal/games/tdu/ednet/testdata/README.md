@@ -1,6 +1,14 @@
 `native-resources.json` contains synthetic, copyright-free resource records.
 The Open/download (`15bfd0`), Open/upload (`15be00`) and Get (`15bb20`)
 request bytes were captured from actual US retail executable instructions.
+For configuration Open requests, the fixture also executes option setter
+`15c190(this, 1, 2)` and user setter `1569d0(this, 0)`, matching callers
+`461ed0`, `4614b0` and `461c80`. These override the constructor's initial
+facility 1 with **facility 2**. `configurationRequests` records the exact bodies
+for `netconfig.xml`, `p2pkey` and `prize.xml`; the server regression downloads
+all three resources through completion. The prior fixture supplied facility 1
+directly and therefore missed the retail caller's override.
+
 The response records were supplied to the actual resource-job consumer
 `15b5d0`; the fixture records its resulting state, cursor, retry parameters,
 resume timer and copied bytes. Real edNet signature/scalar/string/buffer

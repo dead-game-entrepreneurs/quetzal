@@ -5,7 +5,7 @@
     {
       "name": "open",
       "entrypoint": "0x15bfd0",
-      "actionHex": "3be20100000000000d6e6574636f6e6669672e786d6c0000000000"
+      "actionHex": "3be20200000000000d6e6574636f6e6669672e786d6c0000000000"
     },
     {
       "name": "upload",
@@ -21,6 +21,26 @@
       "name": "get",
       "entrypoint": "0x15bb20",
       "actionHex": "d9761122334455667788"
+    }
+  ],
+  "configurationRequests": [
+    {
+      "name": "open",
+      "entrypoint": "0x15bfd0",
+      "actionHex": "3be20200000000000d6e6574636f6e6669672e786d6c0000000000",
+      "resource": "netconfig.xml"
+    },
+    {
+      "name": "open",
+      "entrypoint": "0x15bfd0",
+      "actionHex": "3be2020000000000067032706b65790000000000",
+      "resource": "p2pkey"
+    },
+    {
+      "name": "open",
+      "entrypoint": "0x15bfd0",
+      "actionHex": "3be2020000000000097072697a652e786d6c0000000000",
+      "resource": "prize.xml"
     }
   ],
   "replies": [

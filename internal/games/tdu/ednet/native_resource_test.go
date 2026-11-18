@@ -2,6 +2,7 @@ package ednet
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"net/netip"
@@ -78,5 +79,60 @@ func TestNativeResourceWireFixtures(t *testing.T) {
 				t.Fatalf("native failure %+v", r)
 			}
 		}
+	}
+}
+
+func TestNativeConfigurationResourceDownloads(t *testing.T) {
+	data, err := os.ReadFile("testdata/native-resources.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture struct {
+		ConfigurationRequests []struct{ Resource, ActionHex string }
+	}
+	if err := json.Unmarshal(data, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	if len(fixture.ConfigurationRequests) != 3 {
+		t.Fatal("missing native configuration requests")
+	}
+	resources := map[string][]byte{
+		"netconfig.xml": DefaultNetworkConfig(),
+		"p2pkey":        bytes.Repeat([]byte{0xab}, 16),
+		"prize.xml":     NoAwardsConfig(),
+	}
+	service, err := New(Options{PublicIP: netip.MustParseAddr("192.0.2.7"), DirectoryPort: 9000, ResourcePort: 9001, Resources: resources})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range fixture.ConfigurationRequests {
+		t.Run(row.Resource, func(t *testing.T) {
+			want, ok := resources[row.Resource]
+			if !ok {
+				t.Fatal("unexpected native resource")
+			}
+			opened, err := service.ResourceAction(mustHex(t, row.ActionHex))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(opened) != 19 || opened[2] != 0 || binary.BigEndian.Uint32(opened[7:]) != uint32(len(want)) {
+				t.Fatalf("open reply %x", opened)
+			}
+			id := binary.BigEndian.Uint32(opened[3:])
+			var content []byte
+			for len(content) < len(want) {
+				chunk, err := service.ResourceAction(get(id, uint32(len(content))))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(chunk) <= 15 || chunk[2] != 0 {
+					t.Fatalf("get reply %x", chunk)
+				}
+				content = append(content, chunk[15:]...)
+			}
+			if !bytes.Equal(content, want) {
+				t.Fatal("configuration resource changed during download")
+			}
+		})
 	}
 }

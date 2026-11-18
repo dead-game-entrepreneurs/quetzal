@@ -34,17 +34,17 @@ transfer and departure cleanup. Other tests independently check codecs, authorit
 limits, persistence failures and malformed input. These establish backend
 behavior, not stock-client playability.
 
-## Next acceptance: fresh stock online entry
+## Confirmed: single-client stock online entry
 
-Keep the user's existing DNAS revival route. Fresh-boot US SLUS-214.90 rather than
-resuming a cached savestate. Capture authentication on UDP30200, secure service on
-30201, native master8124 and proxy8122. Check each startup callback through
-resource loading and entry into the connected world. Address the first actual
-unsupported exchange with a bounded codec and a sanitized regression fixture.
+The operator confirmed local PCSX2 online entry after account creation, login,
+native startup and configuration download. Two startup defects found in this
+run are fixed: [bootstrap IPv4 byte order](startup-handoff.md) and the
+[configuration resource facility](native-services.md#resource-wire-schema).
+Native-executed fixtures and real-UDP regressions cover both corrections.
 
-Success means one unmodified client completes its normal online-entry gates
-without forced UI state. A ready log, health response or successful DH handshake
-alone does not meet this milestone.
+This confirms one client's normal online-entry gates. Physical-console and
+hosted-network entry still need field confirmation. Keep the existing DNAS
+route and fresh-boot the game after backend updates.
 
 ## Two-client cruising and racing
 
@@ -78,5 +78,5 @@ racing. Record real-console and PCSX2 Sockets results separately.
 - Exercise restart/backup/recovery with real client state and maintain tenant
   isolation. Do not merge TDU identities, keys or files into 25 to Life state.
 
-No successful retail online-entry, shared-cruising or racing milestone is claimed
-yet. The next useful evidence is a fresh stock-client trace against this backend.
+Single-client online entry is confirmed locally. The next acceptance milestone
+is two stock clients completing shared cruising and a race.

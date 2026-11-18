@@ -4,9 +4,10 @@ The `tdu` adapter targets US PS2 **SLUS-214.90**. It implements account/ticket
 flows, native startup, directory/resources, session registration and discovery,
 nearby-player/map queries, direct-peer admission, reported statistics and
 challenge-file persistence. Two synthetic drivers exercise the combined flow
-through real UDP sockets. **No stock client has completed online entry or a race
-against this backend yet.** Use a fresh retail run to establish the next missing
-exchange; passing protocol tests is not retail validation.
+through real UDP sockets. **One local PCSX2 client has completed stock online
+entry**, including account creation, login and configuration downloads.
+Two-client cruising, racing, physical consoles and public NAT combinations
+remain unverified.
 
 ## Enable the adapter
 
@@ -153,7 +154,7 @@ session/player counts, direct-peer policy and retail-validation status. It is no
 a gameplay-completeness check. Logs carry tenant/game
 labels, and `QUETZAL_LOG_LEVEL=debug` enables packet metadata.
 
-## Validation and first retail run
+## Validation and retail testing
 
 From Quetzal's root:
 
@@ -172,7 +173,7 @@ shutdown and capture failures have separate coverage.
 See the [dated validation report](validation.md) for native-fixture scope, the
 isolated multi-tenant smoke and remaining limits.
 
-For the first retail run:
+For retail compatibility testing:
 
 1. Back up state, enable private captures, and fresh-boot the documented US disc.
    Retain the existing DNAS route and redirect only `tdulive.quazal.net` to Quetzal.
@@ -206,4 +207,16 @@ raw UDP response; see [the recovered exchange](nat-probe.md). No additional port
 or game patch is required. The startup friend refresh also has its recovered
 read-only [roster response](social.md); friendship mutations remain unsupported.
 After this server update, fresh-boot or fully reconnect the game so its expired
-public-URL job starts again. Retail progression still needs tester confirmation.
+public-URL job starts again.
+
+
+## Stock online-entry confirmation
+
+Local PCSX2 testing reached the game after two further startup corrections:
+protocol 104/1 now returns raw network-order IPv4 bytes, and configuration
+Open requests accept the retail callers' facility 2. See
+[bootstrap evidence](startup-handoff.md#quazal-bootstrap-address-byte-order) and
+[resource evidence](native-services.md#resource-wire-schema). The operator
+confirmed successful online entry after these fixes; this is a single-client
+result, with multiplayer acceptance still pending. After updating the server,
+fresh-boot or fully reconnect the game. Existing accounts and keys are retained.

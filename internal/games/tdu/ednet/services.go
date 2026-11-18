@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"github.com/princebyyourlogic/quetzal/internal/games/tdu/nativeproxy"
 	"net/netip"
 	"sort"
+
+	"github.com/princebyyourlogic/quetzal/internal/games/tdu/nativeproxy"
 )
 
 // Options explicitly chooses logical service ports. They are not UDP listeners.
@@ -150,7 +151,8 @@ func (s *Services) ResourceAction(b []byte) ([]byte, error) {
 		if n < 1 || n > 255 || len(b) != 14+n {
 			return nil, ErrMalformed
 		}
-		if b[2] != 1 || binary.BigEndian.Uint32(b[3:]) != 0 || b[9+n] != 0 || binary.BigEndian.Uint32(b[10+n:]) != 0 {
+		// Config callers select facility 2 through retail setter 0x15c190.
+		if b[2] != 2 || binary.BigEndian.Uint32(b[3:]) != 0 || b[9+n] != 0 || binary.BigEndian.Uint32(b[10+n:]) != 0 {
 			return nil, fmt.Errorf("%w: resource facility, user or upload", ErrUnsupported)
 		}
 		name := string(b[9 : 9+n])

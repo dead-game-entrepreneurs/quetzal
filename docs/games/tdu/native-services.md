@@ -118,9 +118,18 @@ signatures at `0x5120e1`, `0x512155`, `0x5121b7`, `0x5121ec`. Open builder
 `0x15bfd0` and response path `0x15b5d0` establish the fields. Buffer primitives
 `0x13a000`/`0x138b80` establish the counted bytes.
 
-The implemented path accepts only facility 1, user 0, download mode and upload
+The implemented path accepts only facility 2, user 0, download mode and upload
 size zero, matching the configuration request callers `0x461ed0`, `0x4614b0`,
-`0x461c80`. No upload or account file operations are enabled. Successful opens
+`0x461c80`. Each caller invokes virtual `+0x18(this, 1, 2)`, resolving to
+setter `0x15c190`, which writes **2** into job field `+8`; user setter
+`0x1569d0` writes zero at `+0x218`. Open builder `0x15bfd0` serializes those
+values. Constructor `0x15c2f0` initially writes facility 1, but the configuration
+callers override it before sending. The initial server incorrectly checked the
+constructor default and rejected all three retail configuration downloads.
+The native fixture now executes the actual option/user setters before building
+Open requests for each configuration filename. Facility 1, other facilities,
+nonzero users, uploads and nonzero upload sizes remain unsupported.
+No upload or account file operations are enabled. Successful opens
 return the real supplied length, a stable file ID, retry policy 10 and timeout
 1000 milliseconds. Gets return up to 1024 bytes at the requested offset, wait
 zero, with the actual counted bytes. This chunk size and retry policy are server

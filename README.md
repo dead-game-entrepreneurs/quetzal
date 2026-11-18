@@ -54,12 +54,13 @@ See the [25 to Life protocol inventory](docs/games/25tolife/protocol-inventory.m
 for implemented operations and remaining SDK coverage.
 
 **Test Drive Unlimited** (US PS2, `SLUS-214.90`) is an experimental adapter
-ready for community compatibility testing. The backend has passed automated
-protocol tests; these features still need confirmation in the stock game:
+ready for community compatibility testing. Local PCSX2 testing has confirmed
+account creation, login, configuration download and online entry in the stock game.
+Multiplayer driving and racing still need validation:
 
 | Feature | Status |
 | --- | --- |
-| Account creation, login and native startup | 🧪 implemented; stock online entry unverified |
+| Account creation, login and native startup | ✅ online entry confirmed with one local PCSX2 client |
 | Cruising groups, discovery and nearby players | 🧪 implemented; two-player driving unverified |
 | Race hosting, browsing, restrictions and session cleanup | 🧪 implemented; race start/finish unverified |
 | Direct peer lookup and NAT introductions | 🧪 implemented; real NAT combinations unverified |
@@ -68,7 +69,7 @@ protocol tests; these features still need confirmation in the stock game:
 | TDU relay and full social/SDK coverage | Not implemented or established |
 
 Tests exercise two synthetic drivers over real UDP and selected retail routines
-in native-code harnesses. **This is not yet a confirmed playable revival.** The
+in native-code harnesses. **Two-player cruising and racing remain unverified.** The
 stock clients own driving and race simulation. See the
 [TDU testing guide](docs/games/tdu/testing.md),
 [public-endpoint startup notes](docs/games/tdu/nat-probe.md),
@@ -249,8 +250,8 @@ rotate separately and contain private full payloads; see the privacy notes below
 For multi-game captures, preserve both tenant subdirectories when upgrading an
 existing single-game capture setup. Operators should correlate a tester's exact
 time, build/region, menu action and error with server logs. Players can follow
-[TDU's testing/reporting steps](docs/games/tdu/testing.md); a physical console or
-PCSX2 Sockets client can provide the first retail validation.
+[TDU's testing/reporting steps](docs/games/tdu/testing.md). Physical-console,
+two-client gameplay and public-network compatibility still need validation.
 
 ### Accounts and privacy
 

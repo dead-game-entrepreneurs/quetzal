@@ -230,7 +230,7 @@ func TestRuntimeGuestSignupLoginTicketsAndBootstrapOverUDP(t *testing.T) {
 	addresses := startAdapter(t, cfg)
 	guestPID, guestTicket := loginTicket(t, addresses.Auth, "guest", "h7fyctiuucf", addresses.Secure.Port())
 	guest := secureProtocol(t, addresses.Secure, guestPID, guestTicket, 0x11111111)
-	if got := guest.rpc(104, 1, nil); !bytes.Equal(got.Payload, u32(binary.BigEndian.Uint32(cfg.PublicIP.AsSlice()))) {
+	if got := guest.rpc(104, 1, nil); !bytes.Equal(got.Payload, cfg.PublicIP.AsSlice()) {
 		t.Fatal("registered guest bootstrap policy changed")
 	}
 	if result := guest.exchange(104, 1, []byte{1}); result.Success {
@@ -257,7 +257,7 @@ func TestRuntimeGuestSignupLoginTicketsAndBootstrapOverUDP(t *testing.T) {
 	}
 	bootstrap := account.rpc(104, 1, nil)
 	ip := cfg.PublicIP.As4()
-	if !bytes.Equal(bootstrap.Payload, u32(binary.BigEndian.Uint32(ip[:]))) {
+	if !bytes.Equal(bootstrap.Payload, ip[:]) {
 		t.Fatalf("wrong bootstrap %x", bootstrap.Payload)
 	}
 }

@@ -1,8 +1,9 @@
 # Testing Test Drive Unlimited PS2
 
 This backend targets the US disc **SLUS-214.90**. It is an experimental community
-test: account, discovery and session services are implemented, but no stock
-client has yet completed online entry, shared cruising or a race against it.
+test: one local PCSX2 client has completed stock account creation, login,
+configuration download and online entry. Shared cruising and racing still need
+two-client testing.
 Other regional builds have not been verified. Follow the test announcement's
 server/DNS details; the server operator must first enable the `tdu` tenant and
 its network routes.
