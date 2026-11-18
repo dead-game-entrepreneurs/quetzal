@@ -52,11 +52,14 @@ Use a three-player staging room in a mode requiring both teams:
 The expected result is that the ready players start and the unready player
 returns to the lobby. A team-empty error in this configuration, failure to start,
 or failure to return the excluded player would warrant a fresh native ready-state
-and start/exit trace. No such successful three-player stock-client test has been
-confirmed yet. The prior successful both-ready two-player match verified normal
-startup, not this distinct case.
+and start/exit trace. The prior successful both-ready two-player match verified
+normal startup, not this distinct case.
+
+On November 18, 2026, after the corrected game-night test was requested, the user
+relayed another player's confirmation that Force Match Start works against
+RackNerd. This records player-reported retail confirmation; no new server change
+or client patch was required for that test.
 
 There is no demonstrated backend correction to deploy from the earlier
 two-player empty-team result alone. Preserve the stock team checks, existing
-room/statistics behavior and real-console compatibility while testing the
-documented flow.
+room/statistics behavior and real-console compatibility.

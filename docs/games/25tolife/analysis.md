@@ -160,7 +160,9 @@ notification/join and a clan flow. No client patch is used. The verified
 two-player startup used both players ready. The original manual specifies that
 Force Match Start excludes unready players; the distinct three-player case and
 the corrected native validation trace are documented in
-[Force Match Start](force-match-start.md).
+[Force Match Start](force-match-start.md). The user subsequently relayed another
+player's confirmation that Force Match Start works on RackNerd, without an
+additional server change or client patch.
 
 Remaining field checks include physical consoles, blocked-direct adaptive
 fallback, forced-relay natural round transition, complete-match reporting,
