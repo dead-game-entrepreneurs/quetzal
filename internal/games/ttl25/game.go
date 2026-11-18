@@ -118,7 +118,7 @@ func Definition(log *slog.Logger, publicIP netip.Addr, stateDir string, key quaz
 				handler = secure
 			}
 			return prudp.New(prudp.Options{Bind: conn.LocalAddr().(*net.UDPAddr).AddrPort(), Conn: conn, ChecksumSeed: 0xff,
-				PlainPayload: true, Observe: observe, Handler: handler, Log: log})
+				PlainPayload: true, MaxDatagramSize: 1000, Observe: observe, Handler: handler, Log: log})
 		}}, nil
 }
 

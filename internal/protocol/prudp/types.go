@@ -64,9 +64,12 @@ type Options struct {
 	PlainPayload bool
 	Observe      func(direction string, local, remote netip.AddrPort, wire []byte) error
 	// Zero values select bounded server defaults, independently of retail timers.
-	MaxPeers         int
-	MaxInFlight      int
-	MaxMessageSize   int
+	MaxPeers       int
+	MaxInFlight    int
+	MaxMessageSize int
+	// MaxDatagramSize bounds the complete outgoing UDP payload, including
+	// PRUDP headers, checksum and payload transforms. Zero keeps the UDP limit.
+	MaxDatagramSize  int
 	MaxRetries       int
 	RetryInterval    time.Duration
 	HandshakeTimeout time.Duration

@@ -120,6 +120,29 @@ PID, and sums that value for clan rating. Clan-kill summary remains unset until
 its mapping is verified. These are replacement policies, not a claim to match
 the historical service's scoring formula.
 
+### Browser reply transport limit
+
+The stock UDP transport constructor `0x002daa80` selects a **1,000-byte complete
+datagram limit**. `0x002db8a8` copies that budget into its socket, and receive
+helper `0x002ef8c0` discards datagrams above it before PRUDP decoding.
+
+A hosted `101/7 GetLadderStats` request for ten rows at 22:14:41 UTC on
+November 18 returned nine existing records in a 3,964-byte RMC reply. The former
+transport split application data into 1,000-byte chunks, producing three
+1,015-byte datagrams and one 979-byte datagram. Only the smaller final fragment
+was acknowledged; the remaining three exhausted retries and disconnected the
+client from online mode. The stats request itself had succeeded.
+
+25 to Life now caps the complete backend datagram at 1,000 bytes. Each DATA
+fragment allows 985 application bytes after accounting for 14 bytes of PRUDP
+header, explicit size and checksum, plus the one-byte plain compression selector.
+The full statistics list remains intact across fragments. This title policy
+does not change the native gameplay relay budget or other adapters' defaults.
+Debug logs include response bytes, fragment count and datagram budget when a
+response spans packets. Regression coverage uses the retail receive capacity,
+reassembles the full reply and checks that acknowledgements preserve the
+connection beyond the retry deadline.
+
 ## Friends
 
 | ID | Operation | Request | Reply | Writer |

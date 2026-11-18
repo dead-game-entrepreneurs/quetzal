@@ -73,6 +73,9 @@ func New(opts Options) (*Server, error) {
 	if opts.MaxMessageSize == 0 {
 		opts.MaxMessageSize = 65536
 	}
+	if opts.MaxDatagramSize == 0 {
+		opts.MaxDatagramSize = 65507
+	}
 	if opts.MaxRetries == 0 {
 		opts.MaxRetries = 5
 	}
@@ -85,7 +88,7 @@ func New(opts Options) (*Server, error) {
 	if opts.IdleTimeout == 0 {
 		opts.IdleTimeout = 2 * time.Minute
 	}
-	if opts.MaxPeers < 1 || opts.MaxPeers > 65536 || opts.MaxInFlight < 1 || opts.MaxInFlight > 4096 || opts.MaxMessageSize < 1 || opts.MaxMessageSize > 4<<20 || opts.MaxRetries < 1 || opts.MaxRetries > 32 || opts.RetryInterval < time.Millisecond || opts.HandshakeTimeout < time.Millisecond || opts.IdleTimeout < time.Millisecond {
+	if opts.MaxPeers < 1 || opts.MaxPeers > 65536 || opts.MaxInFlight < 1 || opts.MaxInFlight > 4096 || opts.MaxMessageSize < 1 || opts.MaxMessageSize > 4<<20 || opts.MaxDatagramSize < 64 || opts.MaxDatagramSize > 65507 || opts.MaxRetries < 1 || opts.MaxRetries > 32 || opts.RetryInterval < time.Millisecond || opts.HandshakeTimeout < time.Millisecond || opts.IdleTimeout < time.Millisecond {
 		return nil, errors.New("invalid PRUDP limits")
 	}
 	if opts.Log == nil {
@@ -234,6 +237,9 @@ func (s *Server) cookie(addr netip.AddrPort) uint32 {
 	return binary.LittleEndian.Uint32(h.Sum(nil))
 }
 func (s *Server) write(addr netip.AddrPort, b []byte) error {
+	if len(b) > s.opts.MaxDatagramSize {
+		return ErrPacket
+	}
 	_, err := s.conn.WriteToUDPAddrPort(b, addr)
 	if err != nil {
 		return err
@@ -505,9 +511,15 @@ func (s *Server) assemble(c *connection, p Packet, now time.Time) ([]byte, bool,
 	return nil, false, nil
 }
 func (s *Server) respond(c *connection, responses [][]byte, now time.Time) error {
-	// A conservative UDP payload avoids IP fragmentation. Each reliable PRUDP
-	// fragment is independently wrapped/encrypted; the final fragment ID is zero.
-	const chunk = 1000
+	// Size the complete datagram, not just the application fragment. DATA has
+	// 14 bytes of header/size/checksum, plus the optional compression selector.
+	// Retail 25 to Life allocates only 1000 bytes for its UDP receive buffer.
+	// Each fragment is wrapped independently; the final fragment ID is zero.
+	overhead := 14
+	if !s.opts.OpaquePayload {
+		overhead++
+	}
+	chunk := min(1000, s.opts.MaxDatagramSize-overhead)
 	total := 0
 	for _, message := range responses {
 		if len(message) > s.opts.MaxMessageSize {
@@ -521,6 +533,10 @@ func (s *Server) respond(c *connection, responses [][]byte, now time.Time) error
 	}
 	for _, message := range responses {
 		count := max(1, (len(message)+chunk-1)/chunk)
+		if count > 1 {
+			s.opts.Log.Debug("PRUDP response fragmented", "peer", c.peer.ID, "local_port", c.peer.LocalPort,
+				"message_bytes", len(message), "fragment_count", count, "max_datagram_bytes", s.opts.MaxDatagramSize)
+		}
 		fragment := byte(1)
 		for i := 0; i < count; i++ {
 			start := i * chunk
