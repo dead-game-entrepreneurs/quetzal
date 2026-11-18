@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"sort"
+	"strconv"
 
 	"github.com/princebyyourlogic/quetzal/internal/protocol/prudp"
 	"github.com/princebyyourlogic/quetzal/internal/protocol/quazal"
@@ -23,6 +24,13 @@ func (r *rankingReader) ids(limit uint32) []uint32 {
 	return ids
 }
 func (s *sessionRegistry) listLocked(ids []uint32, offset, count uint32) []byte {
+	visible := ids[:0]
+	for _, id := range ids {
+		if room, exists := s.rooms[id]; exists && room.migrationUntil.IsZero() {
+			visible = append(visible, id)
+		}
+	}
+	ids = visible
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
 	start := min(uint64(offset), uint64(len(ids)))
 	end := min(start+uint64(count), uint64(len(ids)))
@@ -81,6 +89,7 @@ func (s *sessionRegistry) operation(peer prudp.Peer, pid uint32, request quazal.
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.pruneMigrations()
 	room, exists := s.rooms[gid]
 	switch request.Method {
 	case 5, 8, 14:
@@ -172,7 +181,8 @@ func (s *sessionRegistry) operation(peer prudp.Peer, pid uint32, request quazal.
 		}
 		return b, nil
 	case 21:
-		if !exists {
+		_, member := room.members[owner]
+		if !exists || !room.migrationUntil.IsZero() && !member {
 			return append(boolReply(false), rankingAny(nil, quazal.AnyData{})...), nil
 		}
 		return rankingAny(boolReply(true), room.data), nil
@@ -219,10 +229,7 @@ func (s *sessionRegistry) update(peer prudp.Peer, pid uint32, args []byte) ([]by
 	if !r.done() || len(data) < 16 {
 		return nil, quazal.ErrRMC
 	}
-	id, owner, host := binary.LittleEndian.Uint32(data[4:]), binary.LittleEndian.Uint32(data[8:]), binary.LittleEndian.Uint32(data[12:])
-	if owner != 0 && owner != pid || host != 0 && host != pid {
-		return boolReply(false), nil
-	}
+	id := binary.LittleEndian.Uint32(data[4:])
 	clean := bytes.Clone(data)
 	for i := 4; i < 16; i++ {
 		clean[i] = 0
@@ -233,8 +240,9 @@ func (s *sessionRegistry) update(peer prudp.Peer, pid uint32, args []byte) ([]by
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.pruneMigrations()
 	room, ok := s.rooms[id]
-	if !ok || room.owner != ownerOf(peer, pid) || room.data.Type != kind {
+	if !ok || room.owner != ownerOf(peer, pid) || room.data.Type != kind || !room.migrationUntil.IsZero() {
 		s.logger().Warn("matchmaking room update rejected", "pid", pid, "peer", peer.ID,
 			"local_port", peer.LocalPort, "gid", id, "reason", "room missing or owner/type mismatch")
 		return boolReply(false), nil
@@ -247,13 +255,28 @@ func (s *sessionRegistry) update(peer prudp.Peer, pid uint32, args []byte) ([]by
 		return boolReply(false), nil
 	}
 	room.data.Payload = bytes.Clone(data)
+	// Authority comes from the exact current owner connection. The stock
+	// successor can retain the departed owner's PID in its cached record;
+	// neither supplied identity is ever used to grant ownership.
 	binary.LittleEndian.PutUint32(room.data.Payload[8:], pid)
 	binary.LittleEndian.PutUint32(room.data.Payload[12:], pid)
 	room.input = rankingAny(nil, quazal.AnyData{Type: kind, Payload: clean})
 	room.fields = fields
 	room.state = binary.LittleEndian.Uint32(data[32:])
 	// The host observes native session membership. Backend participation can
-	// outlive a failed peer join or disconnect, so preserve its reported count.
+	// outlive a failed peer join, so its lower reported count is useful. A
+	// cached pre-departure count must not resurrect participants who left.
+	if kind == "TTLSession" {
+		known := len(uniqueMembers(room))
+		if !roomMember(room, pid) {
+			known++
+		}
+		count, _ := strconv.Atoi(room.fields["totalConnectedPlayers"])
+		if count > known {
+			room.fields["totalConnectedPlayers"] = strconv.Itoa(known)
+			binary.LittleEndian.PutUint32(room.data.Payload[len(room.data.Payload)-13:], uint32(known))
+		}
+	}
 	s.rooms[id] = room
 	s.logger().Debug("matchmaking room updated", "pid", pid, "peer", peer.ID, "local_port", peer.LocalPort,
 		"room", s.roomDiagnostic(id, room))
@@ -275,9 +298,10 @@ func (c *community) findRooms(request quazal.Request) ([]byte, error) {
 	}
 	c.sessions.mu.Lock()
 	defer c.sessions.mu.Unlock()
+	c.sessions.pruneMigrations()
 	ids := []uint32{}
 	for id, room := range c.sessions.rooms {
-		if room.data.Type != "TTLSession" {
+		if room.data.Type != "TTLSession" || !room.migrationUntil.IsZero() {
 			continue
 		}
 		match := room.fields["levelName"] == level

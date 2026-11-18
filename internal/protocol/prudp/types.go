@@ -34,6 +34,10 @@ type OutboundHandler interface {
 type OutboundMessage struct {
 	Peer    Peer
 	Payload []byte
+	// Retire revokes this exact transport generation instead of sending DATA.
+	// It lets account registration retire an old connection promptly, without
+	// retaining a transport peer that keeps sending otherwise valid PINGs.
+	Retire bool
 }
 
 // UserDatagramHandler handles a checksum-validated, connectionless USER packet.

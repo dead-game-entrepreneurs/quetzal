@@ -75,6 +75,7 @@ func (s *sessionRegistry) lobby(peer prudp.Peer, pid uint32, request quazal.Requ
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.pruneMigrations()
 	room, exists := s.rooms[gid]
 	switch request.Method {
 	case 11:
@@ -85,6 +86,10 @@ func (s *sessionRegistry) lobby(peer prudp.Peer, pid uint32, request quazal.Requ
 		if _, already := room.members[owner]; already {
 			s.roomEvent("matchmaking participation reused", owner, gid, room)
 			return boolReply(true), nil
+		}
+		if !room.migrationUntil.IsZero() {
+			s.joinRejected(owner, gid, "host migration pending")
+			return boolReply(false), nil
 		}
 		limit, _ := strconv.Atoi(room.fields["maxPlayers"])
 		_, invited := s.invites[gid][pid]
@@ -108,12 +113,7 @@ func (s *sessionRegistry) lobby(peer prudp.Peer, pid uint32, request quazal.Requ
 		if !exists {
 			return boolReply(false), nil
 		}
-		s.relay.removeParticipant(owner, gid)
-		delete(room.members, owner)
-		s.updateCount(&room)
-		s.rooms[gid] = room
-		s.roomEvent("matchmaking participant left", owner, gid, room, "reason", "participation cancelled")
-		return boolReply(true), nil
+		return boolReply(s.leaveRoom(owner, gid, room, "participation cancelled")), nil
 	case 13:
 		if !exists {
 			return rankingU32(nil, 0), nil
@@ -149,12 +149,11 @@ func (s *sessionRegistry) lobby(peer prudp.Peer, pid uint32, request quazal.Requ
 		}
 		return b, nil
 	case 26, 27:
-		if !exists || room.owner != owner || !validSessionURL(text, pid) {
+		if !exists || !s.updateHost(owner, gid, room, request.Method, text) {
+			s.logger().Warn("matchmaking host update rejected", "pid", pid, "peer", peer.ID,
+				"gid", gid, "method", request.Method, "room_exists", exists, "url_empty", text == "")
 			return boolReply(false), nil
 		}
-		room.url = text
-		s.rooms[gid] = room
-		s.roomEvent("matchmaking host endpoint published", owner, gid, room)
 		return boolReply(true), nil
 	case 28:
 		ok := exists && room.url != "" && (room.fields["isPrivate"] != "1" || roomMember(room, pid) || room.owner == owner)
@@ -170,7 +169,7 @@ func (s *sessionRegistry) lobby(peer prudp.Peer, pid uint32, request quazal.Requ
 		}
 		return rankingU32(boolReply(true), room.state), nil
 	case 30:
-		if !exists || room.owner != owner {
+		if !exists || room.owner != owner || !room.migrationUntil.IsZero() {
 			return boolReply(false), nil
 		}
 		room.state = state
@@ -216,6 +215,7 @@ func (s *sessionRegistry) updateCount(room *sessionRecord) {
 func (s *sessionRegistry) forPlayer(pid uint32) []quazal.AnyData {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.pruneMigrations()
 	ids := []uint32{}
 	for id, room := range s.rooms {
 		if room.data.Type == "TTLSession" && (room.owner.pid == pid || roomMember(room, pid)) {

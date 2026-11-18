@@ -35,6 +35,10 @@ type sessionRecord struct {
 	members map[sessionOwner]string
 	url     string
 	state   uint32
+	// A departed host's gathering remains available only to its existing
+	// participants until the native elected host claims it with 21/27.
+	migrationUntil time.Time
+	departedHost   sessionOwner
 }
 type sessionRegistry struct {
 	mu       sync.Mutex
@@ -139,9 +143,10 @@ func (s *sessionRegistry) register(peer prudp.Peer, pid uint32, args []byte) ([]
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.pruneMigrations()
 	owner := ownerOf(peer, pid)
 	for id, room := range s.rooms {
-		if room.owner == owner && room.data.Type == data.Type {
+		if room.migrationUntil.IsZero() && room.owner == owner && room.data.Type == data.Type {
 			if bytes.Equal(room.input, args) {
 				s.roomEvent("matchmaking room registration reused", owner, id, room)
 				return rankingU32(nil, id), nil
@@ -175,40 +180,30 @@ func (s *sessionRegistry) unregister(peer prudp.Peer, pid uint32, args []byte) (
 		return []byte{0}, nil
 	}
 	s.finishRound(id, room)
-	s.roomEvent("matchmaking room removed", room.owner, id, room, "reason", "unregistered")
-	s.relay.removeParticipant(room.owner, id)
-	delete(s.rooms, id)
-	delete(s.invites, id)
+	s.removeRoom(id, room, "unregistered")
 	return []byte{1}, nil
 }
 func (s *sessionRegistry) disconnect(peer prudp.Peer, pid uint32) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	delete(s.urls, ownerOf(peer, pid))
-	delete(s.peers, ownerOf(peer, pid))
-	s.relay.removeParticipant(ownerOf(peer, pid), 0)
+	s.disconnectLocked(ownerOf(peer, pid))
+}
+
+func (s *sessionRegistry) disconnectLocked(owner sessionOwner) {
+	delete(s.urls, owner)
+	delete(s.peers, owner)
+	s.relay.removeParticipant(owner, 0)
 	for id, round := range s.finished {
-		if round.room.owner == ownerOf(peer, pid) {
+		if round.room.owner == owner {
 			delete(s.finished, id)
 		} else {
-			delete(round.room.members, ownerOf(peer, pid))
+			delete(round.room.members, owner)
 		}
 	}
 	for id, room := range s.rooms {
-		if room.owner == ownerOf(peer, pid) {
-			s.roomEvent("matchmaking room removed", room.owner, id, room, "reason", "owner disconnected")
-			delete(s.rooms, id)
-			delete(s.invites, id)
-		} else {
-			_, member := room.members[ownerOf(peer, pid)]
-			delete(room.members, ownerOf(peer, pid))
-			s.updateCount(&room)
-			s.rooms[id] = room
-			if member {
-				s.roomEvent("matchmaking participant left", ownerOf(peer, pid), id, room, "reason", "connection closed")
-			}
-		}
+		s.leaveRoom(owner, id, room, "connection closed")
 	}
+	s.pruneMigrations()
 }
 
 // The retail query builder emits equality predicates joined by AND. This
@@ -290,6 +285,7 @@ func (s *sessionRegistry) searchFor(peer prudp.Peer, pid uint32, request quazal.
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.pruneMigrations()
 	ids := make([]uint32, 0, len(s.rooms))
 	all := make([]uint32, 0, len(s.rooms))
 	for id := range s.rooms {
@@ -300,7 +296,7 @@ func (s *sessionRegistry) searchFor(peer prudp.Peer, pid uint32, request quazal.
 	excluded := map[string]int{}
 	for _, id := range all {
 		room := s.rooms[id]
-		if room.data.Type != "TTLSession" {
+		if room.data.Type != "TTLSession" || !room.migrationUntil.IsZero() {
 			continue
 		}
 		total++

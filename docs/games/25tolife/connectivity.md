@@ -80,10 +80,14 @@ recovered from dispatcher `0x00540908`:
 `0x00541bb0`/`0x00541c58`. Detailed participants use the recovered
 PID/name/message fields. Every retained member is a live connection; the bool
 filter does not add offline records. EndParticipation removes only the exact
-requesting peer's membership. The replacement removes an owner's transient
-room and invitations when the owner leaves; another connection using the same
-PID cannot delete it. This is the current host-exit policy; ownership migration
-is not implemented.
+requesting peer's membership. When a TTLSession host leaves with registered
+participants remaining, the gathering survives for a bounded native host
+handoff. Its old endpoint is withdrawn and the room is hidden from discovery
+until an existing participant completes the stock `21/27` migration operation.
+Another connection using the same PID has no migration authority. Empty rooms,
+expired handoffs and explicit gathering deletion revoke their relay candidates.
+See [host migration and stale sessions](host-migration.md) for the lifecycle,
+connection-replacement policy and retail validation steps.
 
 Tests cover every extension layout, strict booleans/trailing input, grouped
 URLs, participant/host leave, player counts and recreation with a new room ID,

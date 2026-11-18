@@ -42,7 +42,7 @@ dispatcher `0x0053a7c0`:
 | 21/33 | DeleteGathering | SDK deletion lifecycle |
 | 21/34 | GetPendingDeletions | Pending-deletion records |
 | 21/35 | DeleteFromDeletions | Deletion-list cleanup |
-| 21/36 | MigrateGatheringOwnership | Ownership migration unsupported; host exit removes the room |
+| 21/36 | MigrateGatheringOwnership | Generic SDK migration unsupported; stock TTLSession host handoff uses 21/27, see [host migration](host-migration.md) |
 
 ## Other SDK families visible in the build
 

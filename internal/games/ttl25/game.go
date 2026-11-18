@@ -24,7 +24,7 @@ func Definition(log *slog.Logger, publicIP netip.Addr, stateDir string, key quaz
 	if err != nil {
 		return game.Definition{}, err
 	}
-	options := quazal.Options{Role: quazal.Auth, PublicIP: publicIP, SecurePort: 30121, ServerPID: 2, PrincipalKey: key, Store: store, Log: log, ValidateAccountData: ValidateAccountData}
+	options := quazal.Options{Role: quazal.Auth, PublicIP: publicIP, SecurePort: 30121, ServerPID: 2, PrincipalKey: key, Store: store, Log: log, ValidateAccountData: ValidateAccountData, SingleRegistration: true}
 	sessions := newSessions()
 	sessions.log = log
 	var auxiliary []game.UDPService
@@ -44,7 +44,6 @@ func Definition(log *slog.Logger, publicIP netip.Addr, stateDir string, key quaz
 			sessions.relay = relay
 			reserved = append(reserved, game.PortRange{First: int(connectivity[0].FirstPort), Last: int(connectivity[0].LastPort)})
 			auxiliary = append(auxiliary, relay)
-			options.GameProbeInstructions = relay.drainInstructions
 		}
 	}
 	community, err := openCommunity(filepath.Join(stateDir, "community.json"), store, sessions)
@@ -52,6 +51,9 @@ func Definition(log *slog.Logger, publicIP netip.Addr, stateDir string, key quaz
 		return game.Definition{}, err
 	}
 	sessions.name = community.accountName
+	// The transport drains instructions on idle ticks even in direct mode;
+	// use that lifecycle hook to expire abandoned migration vacancies too.
+	options.GameProbeInstructions = sessions.migrationInstructions
 	options.GameProbe = sessions.probeTargets
 	options.GameConnectionURLs = sessions.connectionURLs
 	options.GameStatus = community.status

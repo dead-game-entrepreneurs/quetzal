@@ -55,7 +55,8 @@ func (s *sessionRegistry) roomDiagnostic(id uint32, room sessionRecord) map[stri
 	_, registered := s.peers[room.owner]
 	return map[string]any{"id": id, "type": room.data.Type, "owner_pid": room.owner.pid,
 		"owner_peer": room.owner.peer, "host_registered": registered, "url_published": room.url != "",
-		"state": room.state, "backend_members": len(uniqueMembers(room)), "fields": diagnosticFilters(room.fields)}
+		"state": room.state, "backend_members": len(uniqueMembers(room)), "fields": diagnosticFilters(room.fields),
+		"migration_pending": !room.migrationUntil.IsZero()}
 }
 
 func (s *sessionRegistry) roomEvent(message string, caller sessionOwner, id uint32, room sessionRecord, attrs ...any) {

@@ -27,6 +27,7 @@ func (s *sessionRegistry) extension(peer prudp.Peer, pid uint32, request quazal.
 	}
 	owner := ownerOf(peer, pid)
 	s.mu.Lock()
+	s.pruneMigrations()
 	room, exists := s.rooms[gid]
 	if request.Method == 1 {
 		defer s.mu.Unlock()
@@ -38,24 +39,7 @@ func (s *sessionRegistry) extension(peer prudp.Peer, pid uint32, request quazal.
 			}
 			return boolReply(false), nil
 		}
-		if room.owner == owner {
-			s.finishRound(gid, room)
-			s.roomEvent("matchmaking room removed", owner, gid, room, "reason", "owner ended participation")
-			s.relay.removeParticipant(owner, gid)
-			delete(s.rooms, gid)
-			delete(s.invites, gid)
-			return boolReply(true), nil
-		}
-		if _, member := room.members[owner]; !member {
-			return boolReply(false), nil
-		}
-		s.relay.removeParticipant(owner, gid)
-		delete(room.members, owner)
-		delete(s.invites[gid], pid)
-		s.updateCount(&room)
-		s.rooms[gid] = room
-		s.roomEvent("matchmaking participant left", owner, gid, room, "reason", "participation ended")
-		return boolReply(true), nil
+		return boolReply(s.leaveRoom(owner, gid, room, "participation ended")), nil
 	}
 	accessible := exists && (room.fields["isPrivate"] != "1" || room.owner == owner || roomMember(room, pid))
 	s.mu.Unlock()
@@ -79,6 +63,7 @@ func (s *sessionRegistry) gatheringURLs(peer prudp.Peer, pid uint32, args []byte
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.pruneMigrations()
 	owner := ownerOf(peer, pid)
 	seen := map[uint32]bool{}
 	var records [][]byte

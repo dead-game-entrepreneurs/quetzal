@@ -42,6 +42,10 @@ type Options struct {
 	// RegisteredURLScheme selects the client's returned StationURL scheme.
 	// Empty defaults to prudp; prudps is available for titles that require it.
 	RegisteredURLScheme string
+	// SingleRegistration retires an older named-account registration only
+	// after a fresh ticket-proven connection successfully registers. Titles
+	// that allow simultaneous registrations leave this disabled.
+	SingleRegistration bool
 	// GameRPC requires registration and ticket proof. Guests are denied unless
 	// AllowGuestGameRPC explicitly allows that operation.
 	GameRPC func(peer prudp.Peer, pid uint32, request Request) ([]byte, error)
@@ -72,6 +76,7 @@ type cachedCall struct {
 	reply  []byte
 }
 type peerState struct {
+	peer                     prudp.Peer
 	pid                      uint32
 	guest, proof, registered bool
 	connectionID             uint32
@@ -159,7 +164,7 @@ func (s *Service) Connect(_ context.Context, peer prudp.Peer, payload []byte) (p
 	if len(s.peers) >= 4096 {
 		return prudp.ConnectResult{}, errors.New("quazal: peer capacity reached")
 	}
-	state := &peerState{handshake: digest, cache: make(map[callID]cachedCall)}
+	state := &peerState{peer: peer, handshake: digest, cache: make(map[callID]cachedCall)}
 	if s.options.Role == Auth {
 		if len(payload) != 0 {
 			return prudp.ConnectResult{}, errors.New("quazal: auth CONNECT must have an empty security payload")
@@ -205,16 +210,27 @@ func (s *Service) Connect(_ context.Context, peer prudp.Peer, payload []byte) (p
 
 func (s *Service) Disconnect(peer prudp.Peer) {
 	s.mu.Lock()
+	s.disconnectLocked(peer, "transport disconnected")
+	s.mu.Unlock()
+}
+
+func (s *Service) disconnectLocked(peer prudp.Peer, reason string) {
 	if state := s.peers[peerKey(peer)]; state != nil {
 		s.options.Log.Info("quazal connection closed", "role", s.options.Role, "peer", peer.ID,
 			"remote", peer.Addr, "local_port", peer.LocalPort, "pid", state.pid, "cid", state.connectionID,
-			"registered", state.registered)
+			"registered", state.registered, "reason", reason)
 		if state.proof && !state.guest && s.options.GameDisconnect != nil {
 			s.options.GameDisconnect(peer, state.pid)
 		}
 	}
 	delete(s.peers, peerKey(peer))
-	s.mu.Unlock()
+	out := s.outbound[:0]
+	for _, message := range s.outbound {
+		if peerKey(message.Peer) != peerKey(peer) {
+			out = append(out, message)
+		}
+	}
+	s.outbound = out
 }
 
 func (s *Service) Handle(_ context.Context, peer prudp.Peer, wire []byte) ([][]byte, error) {
@@ -449,6 +465,21 @@ func (s *Service) register(peer prudp.Peer, state *peerState, args []byte) ([]by
 		}
 		if state.connectionID == 0 {
 			return nil, errors.New("connection ID space exhausted")
+		}
+	}
+	if s.options.SingleRegistration && !state.guest {
+		var previous []prudp.Peer
+		for key, other := range s.peers {
+			if key != peerKey(peer) && other.proof && other.registered && !other.guest && other.pid == state.pid {
+				previous = append(previous, other.peer)
+			}
+		}
+		if len(previous) > 128-len(s.outbound) {
+			return nil, errors.New("registration retirement queue capacity reached")
+		}
+		for _, retired := range previous {
+			s.disconnectLocked(retired, "replaced by fresh account registration")
+			s.outbound = append(s.outbound, prudp.OutboundMessage{Peer: retired, Retire: true})
 		}
 	}
 	state.registered = true

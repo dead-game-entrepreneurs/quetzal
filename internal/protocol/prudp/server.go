@@ -463,6 +463,10 @@ func (s *Server) drainOutbound(now time.Time) {
 			if target == nil || target.peer != message.Peer {
 				continue // an expired/replaced connection must never receive this
 			}
+			if message.Retire {
+				s.drop(key, "application retired connection")
+				continue
+			}
 			if err := s.respond(target, [][]byte{message.Payload}, now); err != nil {
 				s.opts.Log.Warn("PRUDP outbound message rejected", "peer", target.peer.ID)
 			}
