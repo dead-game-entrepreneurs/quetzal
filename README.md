@@ -127,7 +127,7 @@ DNAS separate. See the [TDU network setup](docs/games/tdu/running.md#network-set
 You need Docker with Compose on a host supporting Linux host networking.
 
 ```sh
-git clone https://github.com/princebyyourlogic/quetzal.git
+git clone https://github.com/dead-game-entrepreneurs/quetzal.git
 cd quetzal
 cp .env.example .env
 chmod 600 .env
