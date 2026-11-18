@@ -34,8 +34,7 @@ func (s *sessionRegistry) extension(peer prudp.Peer, pid uint32, request quazal.
 		if !exists {
 			s.pruneFinished()
 			if round, ok := s.finished[gid]; ok {
-				_, member := round.room.members[owner]
-				return boolReply(member || round.room.owner == owner), nil
+				return boolReply(round.room.reporters[owner]), nil
 			}
 			return boolReply(false), nil
 		}

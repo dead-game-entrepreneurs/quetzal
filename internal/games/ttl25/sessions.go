@@ -33,8 +33,12 @@ type sessionRecord struct {
 	fields  map[string]string
 	input   []byte
 	members map[sessionOwner]string
-	url     string
-	state   uint32
+	// Round reporting outlives native participation. Keep exact connections
+	// authorized until disconnect/expiry, and retain departed players as targets.
+	reporters  map[sessionOwner]bool
+	reportPIDs map[uint32]bool
+	url        string
+	state      uint32
 	// A departed host's gathering remains available only to its existing
 	// participants until the native elected host claims it with 21/27.
 	migrationUntil time.Time
@@ -162,7 +166,12 @@ func (s *sessionRegistry) register(peer prudp.Peer, pid uint32, args []byte) ([]
 	binary.LittleEndian.PutUint32(data.Payload[4:], id)
 	binary.LittleEndian.PutUint32(data.Payload[8:], pid)
 	binary.LittleEndian.PutUint32(data.Payload[12:], pid)
-	s.rooms[id] = sessionRecord{owner: owner, data: data, fields: fields, input: bytes.Clone(args), members: map[sessionOwner]string{}}
+	room := sessionRecord{owner: owner, data: data, fields: fields, input: bytes.Clone(args), members: map[sessionOwner]string{}}
+	if data.Type == "TTLRound" {
+		room.reporters = map[sessionOwner]bool{owner: true}
+		room.reportPIDs = map[uint32]bool{pid: true}
+	}
+	s.rooms[id] = room
 	s.roomEvent("matchmaking room registered", owner, id, s.rooms[id])
 	return rankingU32(nil, id), nil
 }
@@ -194,13 +203,12 @@ func (s *sessionRegistry) disconnectLocked(owner sessionOwner) {
 	delete(s.peers, owner)
 	s.relay.removeParticipant(owner, 0)
 	for id, round := range s.finished {
-		if round.room.owner == owner {
-			delete(s.finished, id)
-		} else {
-			delete(round.room.members, owner)
-		}
+		delete(round.room.reporters, owner)
+		delete(round.room.members, owner)
+		s.finished[id] = round
 	}
 	for id, room := range s.rooms {
+		delete(room.reporters, owner)
 		s.leaveRoom(owner, id, room, "connection closed")
 	}
 	s.pruneMigrations()

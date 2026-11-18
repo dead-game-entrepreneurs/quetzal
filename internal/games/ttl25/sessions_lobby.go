@@ -104,6 +104,10 @@ func (s *sessionRegistry) lobby(peer prudp.Peer, pid uint32, request quazal.Requ
 			return boolReply(false), nil
 		}
 		room.members[owner] = text
+		if room.data.Type == "TTLRound" {
+			room.reporters[owner] = true
+			room.reportPIDs[pid] = true
+		}
 		s.updateCount(&room)
 		s.rooms[gid] = room
 		delete(s.invites[gid], pid)
@@ -250,7 +254,11 @@ func (s *sessionRegistry) reportKeyFor(peer prudp.Peer, pid uint32) (string, boo
 	var chosen uint32
 	var chosenType string
 	choose := func(gid uint32, room sessionRecord) {
-		if _, ok := room.members[ownerOf(peer, pid)]; ok {
+		_, member := room.members[ownerOf(peer, pid)]
+		if room.data.Type == "TTLRound" {
+			member = room.reporters[ownerOf(peer, pid)]
+		}
+		if member {
 			if chosen == 0 || room.data.Type == "TTLRound" && chosenType != "TTLRound" || room.data.Type == chosenType && gid > chosen {
 				chosen, chosenType = gid, room.data.Type
 			}
@@ -285,6 +293,16 @@ func (s *sessionRegistry) reportAuthority(peer prudp.Peer, pid, gid uint32) (str
 		}
 	}
 	owner := ownerOf(peer, pid)
+	if room.data.Type == "TTLRound" {
+		if !ok || !room.reporters[owner] {
+			return "", nil, false, false
+		}
+		ids := make(map[uint32]bool, len(room.reportPIDs))
+		for id := range room.reportPIDs {
+			ids[id] = true
+		}
+		return fmt.Sprintf("%s:%d", s.runtime, gid), ids, room.owner == owner, true
+	}
 	_, member := room.members[owner]
 	if !ok || room.owner != owner && !member {
 		return "", nil, false, false

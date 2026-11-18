@@ -1,6 +1,9 @@
 package ttl25
 
-import "time"
+import (
+	"maps"
+	"time"
+)
 
 // Round reports and EndParticipation run independently on every console.
 // Retain only reporting authority briefly after removing a round from discovery.
@@ -32,5 +35,7 @@ func (s *sessionRegistry) finishRound(gid uint32, room sessionRecord) {
 		members[owner] = message
 	}
 	room.members = members
+	room.reporters = maps.Clone(room.reporters)
+	room.reportPIDs = maps.Clone(room.reportPIDs)
 	s.finished[gid] = finishedRound{room: room, expires: s.now().Add(2 * time.Minute)}
 }

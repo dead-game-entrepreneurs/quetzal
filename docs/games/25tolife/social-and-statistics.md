@@ -88,8 +88,8 @@ the player's local stat block. Builder `0x0034e0a8` copies **87 personal values*
 (loop `0x56 + 1`) from the following block. The runtime accepts exactly these
 lengths and finite values. Only the authenticated round host commits aggregate
 values for roster members. Every participating retail console submits the same
-full vector: participant reports are acknowledged without writing other
-players’ totals, and compared with host receipts when available. A participant
+initial roster vector: participant reports are acknowledged without writing other
+players’ totals, and compared with host receipts for diagnostics when available. A participant
 may arrive before the host; the host remains responsible for committing the
 aggregate. Personal writes always belong to the authenticated caller.
 
@@ -106,6 +106,25 @@ connection’s authority. The next retail test passed: host reporting/exit at
 of the next round. Both players’ 102-value records were persisted, and the user
 confirmed advancing to the next round. The 31-second gap exercised the completed
 round reporting grace rather than only the still-active-round path.
+
+An eight-client round-end capture subsequently showed five accepted `21/31`
+reports and three false application replies. All clients reported the same
+five-player initial roster, which excluded three later participants; one late
+client also held different snapshots. Requiring a row for the caller rejected
+those legitimate reports and prevented their following `101/9` personal writes.
+Authenticated round participants may now acknowledge that initial roster without
+a row for themselves. Their snapshots never overwrite the host's aggregate;
+differences are counted as diagnostics rather than rejected. Reports still need
+a nonempty, structurally valid vector whose targets belong to that round.
+
+Round reporting retains a historical PID roster independently of current room
+membership, plus exact authorized participant connections. Early exits therefore
+remain valid targets when the host finishes before slower reporters. Disconnect
+revokes only that connection's reporting authority; a departing host does not
+erase other participants' two-minute grace. The round remains absent from
+discovery, URLs and new participation. `statistics gathering report` logs record
+acceptance, reason, host status, caller-row presence, entry count and differing
+snapshot count without names, addresses or raw statistics.
 
 The UI label table at `0x00630690` lists rating, clan rating, sessions, MVPs,
 kills, headshots, raid captures, robbery escapes, tags, deaths, suicides,

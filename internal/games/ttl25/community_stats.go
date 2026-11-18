@@ -231,34 +231,42 @@ func (c *community) gatheringReport(peer prudp.Peer, pid uint32, args []byte) ([
 		return nil, quazal.ErrRMC
 	}
 	key, members, host, ok := c.sessions.reportAuthority(peer, pid, gid)
-	if !ok {
-		return boolReply(false), nil
+	result := func(accepted bool, reason string, mismatches int) ([]byte, error) {
+		if c.sessions.log != nil {
+			c.sessions.log.Info("statistics gathering report", "pid", pid, "peer", peer.ID,
+				"local_port", peer.LocalPort, "gid", gid, "entries", n, "host", host,
+				"caller_in_report", seen[pid], "accepted", accepted, "reason", reason,
+				"non_authoritative_mismatches", mismatches)
+		}
+		return boolReply(accepted), nil
 	}
-	if n == 0 || !seen[pid] {
-		return boolReply(false), nil
+	if !ok {
+		return result(false, "no reporting authority", 0)
+	}
+	if n == 0 || host && !seen[pid] {
+		return result(false, "empty report or host absent", 0)
 	}
 	for _, report := range reports {
 		if !members[report.pid] {
-			return boolReply(false), nil
+			return result(false, "target outside round roster", 0)
 		}
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if !host {
-		// Every retail console submits the complete round vector. A participant
-		// acknowledges it without gaining permission to write anyone's totals.
-		// When the authoritative host report arrived first, verify its receipts.
-		// If the participant arrived first, the host will commit the aggregate;
-		// this acknowledgement lets the participant submit its own 101/9 data.
+		// Retail peers can submit the initial round roster without themselves,
+		// and late peers can have different snapshots. These are diagnostics,
+		// not authoritative writes or reasons to abort personal reporting.
+		mismatches := 0
 		for _, report := range reports {
 			receipt := fmt.Sprintf("%s:gathering:%d", key, report.pid)
 			if digest, exists := c.state.Reports[receipt]; exists && digest != reportDigest(report.values) {
-				return boolReply(false), nil
+				mismatches++
 			}
 		}
-		return boolReply(true), nil
+		return result(true, "participant acknowledged without aggregate write", mismatches)
 	}
-	return c.transaction(func(s *communityState) ([]byte, error) {
+	b, err := c.transaction(func(s *communityState) ([]byte, error) {
 		for _, report := range reports {
 			if err := recordStats(s, report.pid, key+":gathering", 0, report.values, c.now().Unix()); err != nil {
 				return nil, err
@@ -266,6 +274,10 @@ func (c *community) gatheringReport(peer prudp.Peer, pid uint32, args []byte) ([
 		}
 		return boolReply(true), nil
 	})
+	if err != nil {
+		return b, err
+	}
+	return result(true, "host aggregate committed", 0)
 }
 
 func (c *community) accountInfo(pid uint32, args []byte) ([]byte, error) {
