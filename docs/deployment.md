@@ -166,6 +166,10 @@ its original `/TTL/` and `/connectivity` routes.
 separately by Docker. Avoid publishing raw logs or captures in issues; share a
 redacted protocol/method and the observed game behavior instead.
 
+Connection-close reasons and 25 to Life room/search summaries also identify
+which filters excluded a room and which room IDs were returned. See
+[hosted diagnostics](observability.md) for event names and correlation fields.
+
 ## 25 to Life connection modes
 
 `direct` publishes real peer addresses. `relay` publishes proved virtual

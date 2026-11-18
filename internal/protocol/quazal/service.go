@@ -198,13 +198,20 @@ func (s *Service) Connect(_ context.Context, peer prudp.Peer, payload []byte) (p
 		state.connectReply = quazalcrypto.ConnectReply(challenge.Nonce)
 	}
 	s.peers[key] = state
+	s.options.Log.Info("quazal connection established", "role", s.options.Role, "peer", peer.ID,
+		"remote", peer.Addr, "local_port", peer.LocalPort, "pid", state.pid, "guest", state.guest, "proof", state.proof)
 	return prudp.ConnectResult{Payload: append([]byte(nil), state.connectReply...)}, nil
 }
 
 func (s *Service) Disconnect(peer prudp.Peer) {
 	s.mu.Lock()
-	if state := s.peers[peerKey(peer)]; state != nil && state.proof && !state.guest && s.options.GameDisconnect != nil {
-		s.options.GameDisconnect(peer, state.pid)
+	if state := s.peers[peerKey(peer)]; state != nil {
+		s.options.Log.Info("quazal connection closed", "role", s.options.Role, "peer", peer.ID,
+			"remote", peer.Addr, "local_port", peer.LocalPort, "pid", state.pid, "cid", state.connectionID,
+			"registered", state.registered)
+		if state.proof && !state.guest && s.options.GameDisconnect != nil {
+			s.options.GameDisconnect(peer, state.pid)
+		}
 	}
 	delete(s.peers, peerKey(peer))
 	s.mu.Unlock()

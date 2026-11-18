@@ -235,6 +235,8 @@ func (s *sessionRegistry) update(peer prudp.Peer, pid uint32, args []byte) ([]by
 	defer s.mu.Unlock()
 	room, ok := s.rooms[id]
 	if !ok || room.owner != ownerOf(peer, pid) || room.data.Type != kind {
+		s.logger().Warn("matchmaking room update rejected", "pid", pid, "peer", peer.ID,
+			"local_port", peer.LocalPort, "gid", id, "reason", "room missing or owner/type mismatch")
 		return boolReply(false), nil
 	}
 	limit := int(binary.LittleEndian.Uint16(parsed.Payload[18:]))
@@ -253,6 +255,8 @@ func (s *sessionRegistry) update(peer prudp.Peer, pid uint32, args []byte) ([]by
 	// The host observes native session membership. Backend participation can
 	// outlive a failed peer join or disconnect, so preserve its reported count.
 	s.rooms[id] = room
+	s.logger().Debug("matchmaking room updated", "pid", pid, "peer", peer.ID, "local_port", peer.LocalPort,
+		"room", s.roomDiagnostic(id, room))
 	return boolReply(true), nil
 }
 

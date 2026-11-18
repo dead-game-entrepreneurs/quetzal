@@ -26,6 +26,7 @@ func Definition(log *slog.Logger, publicIP netip.Addr, stateDir string, key quaz
 	}
 	options := quazal.Options{Role: quazal.Auth, PublicIP: publicIP, SecurePort: 30121, ServerPID: 2, PrincipalKey: key, Store: store, Log: log, ValidateAccountData: ValidateAccountData}
 	sessions := newSessions()
+	sessions.log = log
 	var auxiliary []game.UDPService
 	var reserved []game.PortRange
 	if len(connectivity) > 1 {
@@ -70,7 +71,7 @@ func Definition(log *slog.Logger, publicIP netip.Addr, stateDir string, key quaz
 			return sessions.extension(peer, pid, request)
 		}
 		if request.Protocol == 101 && request.Method == 2 {
-			return sessions.search(request.Args)
+			return sessions.searchFor(peer, pid, request)
 		}
 		if request.Protocol == 21 && request.Method == 1 {
 			r := rankingReader{b: request.Args}

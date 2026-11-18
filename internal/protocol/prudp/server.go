@@ -143,7 +143,7 @@ func (s *Server) Serve(ctx context.Context) error {
 	defer s.Close()
 	defer func() {
 		for k := range s.peers {
-			s.drop(k)
+			s.drop(k, "server shutdown")
 		}
 	}()
 	buf := make([]byte, 65535)
@@ -250,12 +250,15 @@ func (s *Server) send(addr netip.AddrPort, p Packet) ([]byte, error) {
 func (s *Server) base(c *connection, kind, flags byte, seq uint16) Packet {
 	return Packet{Source: c.peer.DestinationStream, Destination: c.peer.SourceStream, Type: kind, Flags: flags, Session: c.session, Signature: c.remoteCookie, Sequence: seq}
 }
-func (s *Server) drop(k peerKey) {
+func (s *Server) drop(k peerKey, reason string) {
 	c := s.peers[k]
 	if c == nil {
 		return
 	}
 	delete(s.peers, k)
+	s.opts.Log.Info("PRUDP disconnected", "peer", c.peer.ID, "remote", c.peer.Addr,
+		"local_port", c.peer.LocalPort, "reason", reason, "pending_packets", len(c.pending),
+		"buffered_bytes", c.receivedBytes+len(c.fragments))
 	s.opts.Handler.Disconnect(c.peer)
 }
 func (s *Server) receive(ctx context.Context, addr netip.AddrPort, p Packet, now time.Time) {
@@ -324,7 +327,8 @@ func (s *Server) receive(ctx context.Context, addr netip.AddrPort, p Packet, now
 		result, err := s.opts.Handler.Connect(callCtx, peer, payload)
 		cancel()
 		if err != nil {
-			s.opts.Log.Debug("PRUDP CONNECT rejected", "peer", peer.ID)
+			s.opts.Log.Warn("PRUDP CONNECT rejected", "peer", peer.ID, "remote", peer.Addr,
+				"local_port", peer.LocalPort, "reason", err.Error())
 			return
 		}
 		if len(result.Payload) > s.opts.MaxMessageSize || len(result.Payload) > 65000 {
@@ -348,11 +352,12 @@ func (s *Server) receive(ctx context.Context, addr netip.AddrPort, p Packet, now
 			return
 		}
 		if previous != nil {
-			s.drop(k)
+			s.drop(k, "replaced by fresh handshake")
 			s.opts.Log.Info("PRUDP connection replaced after fresh handshake", "peer", peer.ID, "local_port", peer.LocalPort)
 		}
 		s.peers[k] = c
-		s.opts.Log.Debug("PRUDP connected", "peer", peer.ID, "local_port", peer.LocalPort)
+		s.opts.Log.Info("PRUDP connected", "peer", peer.ID, "remote", peer.Addr, "local_port", peer.LocalPort,
+			"source_stream", peer.SourceStream, "destination_stream", peer.DestinationStream)
 		return
 	}
 	c := s.peers[k]
@@ -391,12 +396,12 @@ func (s *Server) receive(ctx context.Context, addr netip.AddrPort, p Packet, now
 		ack := s.base(c, p.Type, FlagAck, p.Sequence)
 		ack.Fragment = p.Fragment
 		if _, err = s.send(addr, ack); err != nil {
-			s.drop(k)
+			s.drop(k, "acknowledgement write failed")
 			return
 		}
 	}
 	if p.Type == DISCONNECT {
-		s.drop(k)
+		s.drop(k, "peer disconnect")
 		return
 	}
 	if p.Type == PING && p.Flags&FlagReliable == 0 {
@@ -429,7 +434,7 @@ func (s *Server) receive(ctx context.Context, addr netip.AddrPort, p Packet, now
 		}
 		message, complete, e := s.assemble(c, current, now)
 		if e != nil {
-			s.drop(k)
+			s.drop(k, "invalid message fragments")
 			return
 		}
 		if !complete {
@@ -437,13 +442,13 @@ func (s *Server) receive(ctx context.Context, addr netip.AddrPort, p Packet, now
 		}
 		responses, e := s.opts.Handler.Handle(ctx, c.peer, message)
 		if e != nil {
-			s.opts.Log.Debug("PRUDP request rejected", "peer", c.peer.ID)
-			s.drop(k)
+			s.opts.Log.Warn("PRUDP request rejected", "peer", c.peer.ID, "local_port", c.peer.LocalPort, "reason", e.Error())
+			s.drop(k, "application request rejected")
 			return
 		}
 		if e = s.respond(c, responses, now); e != nil {
-			s.opts.Log.Debug("PRUDP response exceeds transport bounds", "peer", c.peer.ID)
-			s.drop(k)
+			s.opts.Log.Warn("PRUDP response exceeds transport bounds", "peer", c.peer.ID, "local_port", c.peer.LocalPort, "reason", e.Error())
+			s.drop(k, "response exceeds transport bounds")
 			return
 		}
 		s.drainOutbound(now)
@@ -545,8 +550,12 @@ func (s *Server) respond(c *connection, responses [][]byte, now time.Time) error
 }
 func (s *Server) expire(now time.Time) {
 	for k, c := range s.peers {
-		if now.Sub(c.last) >= s.opts.IdleTimeout || (!c.fragmentStarted.IsZero() && now.Sub(c.fragmentStarted) >= s.opts.HandshakeTimeout) {
-			s.drop(k)
+		if now.Sub(c.last) >= s.opts.IdleTimeout {
+			s.drop(k, "idle timeout")
+			continue
+		}
+		if !c.fragmentStarted.IsZero() && now.Sub(c.fragmentStarted) >= s.opts.HandshakeTimeout {
+			s.drop(k, "fragment timeout")
 			continue
 		}
 		for _, p := range c.pending {
@@ -554,11 +563,11 @@ func (s *Server) expire(now time.Time) {
 				continue
 			}
 			if p.retries >= s.opts.MaxRetries {
-				s.drop(k)
+				s.drop(k, "reliable retries exhausted")
 				break
 			}
 			if err := s.write(c.peer.Addr, p.wire); err != nil {
-				s.drop(k)
+				s.drop(k, "retry write failed")
 				break
 			}
 			p.retries++

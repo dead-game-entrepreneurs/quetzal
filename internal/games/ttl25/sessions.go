@@ -2,9 +2,11 @@ package ttl25
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
+	"log/slog"
 	"sort"
 	"strconv"
 	"strings"
@@ -46,6 +48,7 @@ type sessionRegistry struct {
 	finished map[uint32]finishedRound
 	now      func() time.Time
 	relay    *nativeRelay
+	log      *slog.Logger
 }
 
 type finishedRound struct {
@@ -140,6 +143,7 @@ func (s *sessionRegistry) register(peer prudp.Peer, pid uint32, args []byte) ([]
 	for id, room := range s.rooms {
 		if room.owner == owner && room.data.Type == data.Type {
 			if bytes.Equal(room.input, args) {
+				s.roomEvent("matchmaking room registration reused", owner, id, room)
 				return rankingU32(nil, id), nil
 			}
 			return nil, errors.New("connection already hosts a session")
@@ -154,6 +158,7 @@ func (s *sessionRegistry) register(peer prudp.Peer, pid uint32, args []byte) ([]
 	binary.LittleEndian.PutUint32(data.Payload[8:], pid)
 	binary.LittleEndian.PutUint32(data.Payload[12:], pid)
 	s.rooms[id] = sessionRecord{owner: owner, data: data, fields: fields, input: bytes.Clone(args), members: map[sessionOwner]string{}}
+	s.roomEvent("matchmaking room registered", owner, id, s.rooms[id])
 	return rankingU32(nil, id), nil
 }
 
@@ -170,6 +175,7 @@ func (s *sessionRegistry) unregister(peer prudp.Peer, pid uint32, args []byte) (
 		return []byte{0}, nil
 	}
 	s.finishRound(id, room)
+	s.roomEvent("matchmaking room removed", room.owner, id, room, "reason", "unregistered")
 	s.relay.removeParticipant(room.owner, id)
 	delete(s.rooms, id)
 	delete(s.invites, id)
@@ -190,12 +196,17 @@ func (s *sessionRegistry) disconnect(peer prudp.Peer, pid uint32) {
 	}
 	for id, room := range s.rooms {
 		if room.owner == ownerOf(peer, pid) {
+			s.roomEvent("matchmaking room removed", room.owner, id, room, "reason", "owner disconnected")
 			delete(s.rooms, id)
 			delete(s.invites, id)
 		} else {
+			_, member := room.members[ownerOf(peer, pid)]
 			delete(room.members, ownerOf(peer, pid))
 			s.updateCount(&room)
 			s.rooms[id] = room
+			if member {
+				s.roomEvent("matchmaking participant left", ownerOf(peer, pid), id, room, "reason", "connection closed")
+			}
 		}
 	}
 }
@@ -203,21 +214,25 @@ func (s *sessionRegistry) disconnect(peer prudp.Peer, pid uint32) {
 // The retail query builder emits equality predicates joined by AND. This
 // evaluates typed room fields directly; no incoming text is executed as SQL.
 func parseSessionQuery(query string) (map[string]string, error) {
-	const prefix = "WHERE Gatherings.type = 'TTLSession'"
+	const prefix = "WHERE "
 	if !strings.HasPrefix(query, prefix) {
 		return nil, errors.New("unsupported session query")
 	}
 	filters := make(map[string]string)
-	tail := strings.TrimPrefix(query, prefix)
-	if tail == "" {
-		return filters, nil
-	}
-	if !strings.HasPrefix(tail, " AND ") {
-		return nil, quazal.ErrRMC
-	}
-	for _, term := range strings.Split(tail[5:], " AND ") {
+	hasType := false
+	for _, term := range strings.Split(strings.TrimPrefix(query, prefix), " AND ") {
 		parts := strings.SplitN(term, " = ", 2)
-		if len(parts) != 2 || !strings.HasPrefix(parts[0], "TTLSessions.") {
+		if len(parts) != 2 {
+			return nil, quazal.ErrRMC
+		}
+		if parts[0] == "Gatherings.type" {
+			if hasType || parts[1] != "'TTLSession'" {
+				return nil, quazal.ErrRMC
+			}
+			hasType = true
+			continue
+		}
+		if !strings.HasPrefix(parts[0], "TTLSessions.") {
 			return nil, quazal.ErrRMC
 		}
 		name := strings.TrimPrefix(parts[0], "TTLSessions.")
@@ -249,41 +264,68 @@ func parseSessionQuery(query string) (map[string]string, error) {
 		}
 		filters[name] = strconv.FormatUint(n, 10)
 	}
+	if !hasType {
+		return nil, quazal.ErrRMC
+	}
 	return filters, nil
 }
 
 func (s *sessionRegistry) search(args []byte) ([]byte, error) {
-	r := rankingReader{b: args}
+	return s.searchFor(prudp.Peer{}, 0, quazal.Request{Protocol: 101, Method: 2, Args: args})
+}
+
+func (s *sessionRegistry) searchFor(peer prudp.Peer, pid uint32, request quazal.Request) ([]byte, error) {
+	r := rankingReader{b: request.Args}
 	query := r.strLimit(4096)
 	offset, count := r.u32(), r.u32()
+	log := s.searchLogger(peer, pid, request, query, offset, count)
 	if !r.done() || count > 100 {
+		log.Warn("matchmaking search rejected", "reason", "invalid request envelope or result limit")
 		return nil, quazal.ErrRMC
 	}
 	filters, err := parseSessionQuery(query)
 	if err != nil {
+		log.Warn("matchmaking search rejected", "reason", err.Error())
 		return nil, err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ids := make([]uint32, 0, len(s.rooms))
-	for id, room := range s.rooms {
+	all := make([]uint32, 0, len(s.rooms))
+	for id := range s.rooms {
+		all = append(all, id)
+	}
+	sort.Slice(all, func(i, j int) bool { return all[i] < all[j] })
+	total, details := 0, 0
+	excluded := map[string]int{}
+	for _, id := range all {
+		room := s.rooms[id]
 		if room.data.Type != "TTLSession" {
 			continue
 		}
-		match := true
+		total++
+		mismatched := []string{}
 		for field, value := range filters {
 			if room.fields[field] != value {
-				match = false
-				break
+				mismatched = append(mismatched, field)
+				excluded[field]++
 			}
 		}
-		if match {
+		if len(mismatched) == 0 {
 			ids = append(ids, id)
+		}
+		if details < 32 && log.Enabled(context.Background(), slog.LevelDebug) {
+			sort.Strings(mismatched)
+			log.Debug("matchmaking browse candidate", "room", s.roomDiagnostic(id, room), "mismatched_fields", mismatched)
+			details++
 		}
 	}
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
 	start := min(uint64(offset), uint64(len(ids)))
 	end := min(start+uint64(count), uint64(len(ids)))
+	log.Info("matchmaking search completed", "filters", diagnosticFilters(filters), "total_rooms", total,
+		"matched_count", len(ids), "returned_room_ids", ids[start:end], "excluded_by_filter", excluded,
+		"candidate_details_logged", details)
 	b := rankingU32(nil, uint32(end-start))
 	for _, id := range ids[start:end] {
 		b = rankingAny(b, s.rooms[id].data)

@@ -269,7 +269,7 @@ func (c *community) handle(peer prudp.Peer, pid uint32, request quazal.Request) 
 	}
 	switch {
 	case request.Method == 2:
-		return c.sessions.search(request.Args)
+		return c.sessions.searchFor(peer, pid, request)
 	case request.Method == 1 || request.Method == 3:
 		return c.findRooms(request)
 	case request.Method >= 11 && request.Method <= 16:

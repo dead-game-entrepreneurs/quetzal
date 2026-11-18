@@ -79,20 +79,30 @@ func (s *sessionRegistry) lobby(peer prudp.Peer, pid uint32, request quazal.Requ
 	switch request.Method {
 	case 11:
 		if !exists {
+			s.joinRejected(owner, gid, "room not found")
 			return boolReply(false), nil
 		}
 		if _, already := room.members[owner]; already {
+			s.roomEvent("matchmaking participation reused", owner, gid, room)
 			return boolReply(true), nil
 		}
 		limit, _ := strconv.Atoi(room.fields["maxPlayers"])
 		_, invited := s.invites[gid][pid]
 		if roomMember(room, pid) || len(room.members) >= limit || room.fields["isPrivate"] == "1" && room.owner != owner && !invited {
+			reason := "private room requires invitation"
+			if roomMember(room, pid) {
+				reason = "account already participating on another connection"
+			} else if len(room.members) >= limit {
+				reason = "room full"
+			}
+			s.joinRejected(owner, gid, reason)
 			return boolReply(false), nil
 		}
 		room.members[owner] = text
 		s.updateCount(&room)
 		s.rooms[gid] = room
 		delete(s.invites[gid], pid)
+		s.roomEvent("matchmaking participant joined", owner, gid, room)
 		return boolReply(true), nil
 	case 12:
 		if !exists {
@@ -102,6 +112,7 @@ func (s *sessionRegistry) lobby(peer prudp.Peer, pid uint32, request quazal.Requ
 		delete(room.members, owner)
 		s.updateCount(&room)
 		s.rooms[gid] = room
+		s.roomEvent("matchmaking participant left", owner, gid, room, "reason", "participation cancelled")
 		return boolReply(true), nil
 	case 13:
 		if !exists {
@@ -143,6 +154,7 @@ func (s *sessionRegistry) lobby(peer prudp.Peer, pid uint32, request quazal.Requ
 		}
 		room.url = text
 		s.rooms[gid] = room
+		s.roomEvent("matchmaking host endpoint published", owner, gid, room)
 		return boolReply(true), nil
 	case 28:
 		ok := exists && room.url != "" && (room.fields["isPrivate"] != "1" || roomMember(room, pid) || room.owner == owner)
@@ -164,6 +176,7 @@ func (s *sessionRegistry) lobby(peer prudp.Peer, pid uint32, request quazal.Requ
 		room.state = state
 		binary.LittleEndian.PutUint32(room.data.Payload[32:], state)
 		s.rooms[gid] = room
+		s.roomEvent("matchmaking room state changed", owner, gid, room)
 		return boolReply(true), nil
 	default:
 		return nil, errors.New("unsupported lobby method")

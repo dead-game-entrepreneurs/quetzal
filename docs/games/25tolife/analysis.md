@@ -145,6 +145,14 @@ worked after this correction. Listings and invitations still disappear promptly.
 
 ## Confirmed behavior and remaining work
 
+Hosted browse captures also established a second stock query ordering:
+`WHERE TTLSessions.levelName = '...' AND Gatherings.type = 'TTLSession' AND TTLSessions.isPrivate = 0`.
+Requiring the type clause first rejected these map-filtered searches while
+ordinary browsing succeeded. The bounded equality parser now accepts either
+order, retains the required exact type and rejects duplicates, unknown fields
+and unrecognized expressions. Search diagnostics record filters, result IDs
+and exclusion reasons without raw room or account text.
+
 Two unmodified PCSX2 Sockets clients confirmed signup/recovery/login, hosting,
 browsing/filtered search, native direct and forced-relay gameplay, direct next-round
 transition, both players' round reports, host departure, friends, game invite

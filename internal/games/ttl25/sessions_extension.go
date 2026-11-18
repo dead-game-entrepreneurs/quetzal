@@ -40,6 +40,7 @@ func (s *sessionRegistry) extension(peer prudp.Peer, pid uint32, request quazal.
 		}
 		if room.owner == owner {
 			s.finishRound(gid, room)
+			s.roomEvent("matchmaking room removed", owner, gid, room, "reason", "owner ended participation")
 			s.relay.removeParticipant(owner, gid)
 			delete(s.rooms, gid)
 			delete(s.invites, gid)
@@ -53,6 +54,7 @@ func (s *sessionRegistry) extension(peer prudp.Peer, pid uint32, request quazal.
 		delete(s.invites[gid], pid)
 		s.updateCount(&room)
 		s.rooms[gid] = room
+		s.roomEvent("matchmaking participant left", owner, gid, room, "reason", "participation ended")
 		return boolReply(true), nil
 	}
 	accessible := exists && (room.fields["isPrivate"] != "1" || room.owner == owner || roomMember(room, pid))
