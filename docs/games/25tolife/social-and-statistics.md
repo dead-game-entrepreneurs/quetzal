@@ -139,6 +139,29 @@ PID, and sums that value for clan rating. Clan-kill summary remains unset until
 its mapping is verified. These are replacement policies, not a claim to match
 the historical service's scoring formula.
 
+### Rank research and lobby icons
+
+The [publisher-hosted PS2 manual](https://support.na.square-enix.com/document/manual/982/25_to_Life_PS2.pdf#page=10)
+states that ranked matches report statistics for rankings and unranked matches
+can be used for practice. It does not document a scoring formula or badge
+thresholds. The [Insignia Xbox leaderboard](https://insignia.live/games/45530018)
+separates ordinal Rank from numeric Rating; that is evidence about its current
+Xbox service, not verification of the original PS2 algorithm.
+
+The stock PS2 UI label is `User Rating (Rank)` at `0x00630518`. Native player
+state separately exposes `d_rank` and `d_rating`: reader `0x001ed1a0` returns
+the fields at offsets 4 and 8 of the rank structure, respectively. In the player
+object these are `+0x158` and `+0x15c`. Setters `0x001d3a50` and `0x001d39f0`
+update the corresponding replicated fields; `0x00128028` copies the local
+online interface's values into those fields during player setup.
+
+`MAIN.HOG` contains ten `SCREENS/RANK_01.DBL` through `RANK_10.DBL` assets,
+also included in `UBER_ONLINE.DBL`. Their existence confirms stock rank-icon
+support, but the mapping from rank/rating to those ten assets is not yet
+recovered. A first-place browser entry alone does not verify that the correct
+replicated lobby value or icon selection was supplied. No badge mapping or
+historical rating formula is implemented on the basis of those filenames.
+
 ### Browser reply transport limit
 
 The stock UDP transport constructor `0x002daa80` selects a **1,000-byte complete
