@@ -156,8 +156,11 @@ and exclusion reasons without raw room or account text.
 Two unmodified PCSX2 Sockets clients confirmed signup/recovery/login, hosting,
 browsing/filtered search, native direct and forced-relay gameplay, direct next-round
 transition, both players' round reports, host departure, friends, game invite
-notification/join and a clan flow. No client patch is used. The stock Force Start
-ready/team restrictions are preserved; both players ready up in the verified flow.
+notification/join and a clan flow. No client patch is used. The verified
+two-player startup used both players ready. The original manual specifies that
+Force Match Start excludes unready players; the distinct three-player case and
+the corrected native validation trace are documented in
+[Force Match Start](force-match-start.md).
 
 Remaining field checks include physical consoles, blocked-direct adaptive
 fallback, forced-relay natural round transition, complete-match reporting,
