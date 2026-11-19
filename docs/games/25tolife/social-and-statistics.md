@@ -86,7 +86,8 @@ Builder `0x0034d738` creates one gathering-stat entry per participant, with
 participant PID, a constant type value 1, and **15 float values** copied from
 the player's local stat block. Builder `0x0034e0a8` copies **87 personal values**
 (loop `0x56 + 1`) from the following block. The runtime accepts exactly these
-lengths and finite values. Only the authenticated round host commits aggregate
+lengths and finite values, with an empty personal list acknowledged without a
+write when the caller has round reporting authority. Only the authenticated round host commits aggregate
 values for roster members. Every participating retail console submits the same
 initial roster vector: participant reports are acknowledged without writing other
 players’ totals, and compared with host receipts for diagnostics when available. A participant
@@ -125,6 +126,14 @@ erase other participants' two-minute grace. The round remains absent from
 discovery, URLs and new participation. `statistics gathering report` logs record
 acceptance, reason, host status, caller-row presence, entry count and differing
 snapshot count without names, addresses or raw statistics.
+
+A subsequent game-night audit found ten `101/9` rejections whose captured
+arguments were exactly a zero list count and no values. These are valid empty
+personal reports, not truncated 87-value vectors. They are now acknowledged
+without creating or clearing statistics or adding replay receipts. Exact caller
+reporting authority is still required; nonempty vectors must contain all 87
+finite values. Existing snapshots are preserved. `statistics personal report
+skipped` logs distinguish an accepted empty report from a persisted full report.
 
 The UI label table at `0x00630690` lists rating, clan rating, sessions, MVPs,
 kills, headshots, raid captures, robbery escapes, tags, deaths, suicides,

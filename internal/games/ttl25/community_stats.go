@@ -103,12 +103,21 @@ func (c *community) statistics(peer prudp.Peer, pid uint32, request quazal.Reque
 	}
 	if request.Method == 9 {
 		values := r.floats(87)
-		if !r.done() || len(values) != 87 {
+		if !r.done() || len(values) != 0 && len(values) != 87 {
 			return nil, quazal.ErrRMC
 		}
 		key, ok := c.sessions.reportKeyFor(peer, pid)
 		if !ok {
 			return nil, errors.New("personal statistics require active gathering participation")
+		}
+		if len(values) == 0 {
+			// Retail can finish a round without building a local personal row.
+			// Acknowledge its empty list without inventing or clearing statistics.
+			if c.sessions.log != nil {
+				c.sessions.log.Info("statistics personal report skipped", "pid", pid, "peer", peer.ID,
+					"local_port", peer.LocalPort, "accepted", true, "reason", "empty personal vector")
+			}
+			return nil, nil
 		}
 		return c.transaction(func(s *communityState) ([]byte, error) {
 			return nil, recordStats(s, pid, key+":personal", 15, values, c.now().Unix())

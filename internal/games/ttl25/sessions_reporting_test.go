@@ -1,8 +1,10 @@
 package ttl25
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -213,5 +215,58 @@ func TestRoundReportLateParticipantAndDepartedRoster(t *testing.T) {
 				t.Fatal("disconnected participant retains personal reporting authority")
 			}
 		})
+	}
+}
+
+func TestEmptyPersonalReportAcknowledgedWithoutChangingStatistics(t *testing.T) {
+	f := newCommunityFixture(t)
+	c, s := f.c, f.c.sessions
+	b, err := s.register(f.pa, f.a.PID, testRoundArgs())
+	if err != nil {
+		t.Fatal(err)
+	}
+	gid := binary.LittleEndian.Uint32(b)
+	b, err = s.lobby(f.pb, f.b.PID, quazal.Request{Method: 11, Args: rankingString(rankingU32(nil, gid), "")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantBool(t, b, true)
+	empty := rankingU32(nil, 0)
+	before, err := os.ReadFile(c.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if reply := communityCall(t, c, f.pb, f.b.PID, 9, empty); len(reply) != 0 {
+			t.Fatal("empty personal report has unexpected output fields")
+		}
+	}
+	after, err := os.ReadFile(c.path)
+	if err != nil || !bytes.Equal(before, after) || len(c.state.Stats) != 0 || len(c.state.Reports) != 0 {
+		t.Fatal("empty personal report created persistent statistics", err)
+	}
+	values := make([]float32, 87)
+	values[0], values[86] = 7, 3
+	communityCall(t, c, f.pb, f.b.PID, 9, append(rankingU32(nil, 87), floatBytes(values)...))
+	before, err = os.ReadFile(c.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	communityCall(t, c, f.pb, f.b.PID, 9, empty)
+	after, err = os.ReadFile(c.path)
+	if err != nil || !bytes.Equal(before, after) || c.state.Stats[f.b.PID].Values[15] != 7 || c.state.Stats[f.b.PID].Values[101] != 3 || len(c.state.Reports) != 1 {
+		t.Fatal("empty report cleared stored values or replay receipts", err)
+	}
+	for _, invalid := range [][]byte{append(empty, 0), append(rankingU32(nil, 1), floatBytes([]float32{0})...)} {
+		if _, err := c.handle(f.pb, f.b.PID, quazal.Request{Protocol: 101, Method: 9, Args: invalid}); err == nil {
+			t.Fatal("malformed or partial personal vector accepted")
+		}
+	}
+	if _, err := c.handle(f.pd, f.d.PID, quazal.Request{Protocol: 101, Method: 9, Args: empty}); err == nil {
+		t.Fatal("empty report bypassed round authority")
+	}
+	s.disconnect(f.pb, f.b.PID)
+	if _, err := c.handle(f.pb, f.b.PID, quazal.Request{Protocol: 101, Method: 9, Args: empty}); err == nil {
+		t.Fatal("disconnected participant submitted empty report")
 	}
 }
