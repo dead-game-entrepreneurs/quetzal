@@ -147,6 +147,9 @@ func (s *sessionRegistry) lobby(peer prudp.Peer, pid uint32, request quazal.Requ
 			return rankingU32(nil, 0), nil
 		}
 		list := s.participantURLsFor(owner, gid, room)
+		s.logger().Info("matchmaking participant URLs returned", "pid", pid, "peer", peer.ID,
+			"gid", gid, "url_count", len(list), "participants", len(uniqueMembers(room)),
+			"caller_is_member", roomMember(room, pid))
 		b := rankingU32(nil, uint32(len(list)))
 		for _, u := range list {
 			b = rankingString(b, u)

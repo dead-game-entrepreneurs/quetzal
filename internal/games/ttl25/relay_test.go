@@ -67,6 +67,62 @@ func relayTestFixture(t *testing.T) (*nativeRelay, *net.UDPConn, *net.UDPConn, r
 }
 func strconvPID(pid uint32) string { return fmt.Sprint(pid) }
 
+func TestAdaptiveBrowseProbeDoesNotActivateGameplay(t *testing.T) {
+	r, a, b, ai, bi := relayTestFixture(t)
+	r.offer(123, ai, bi, bi.url)
+	p := r.pairs[relayPairKey{123, ai.owner, bi.owner}]
+	endpoint := p.sockets[1].LocalAddr().(*net.UDPAddr).AddrPort()
+	stranger := relaySocket(t, "127.0.0.2")
+	nonce := []byte{1, 2, 3, 4, 5, 6, 7, 8}
+	stranger.WriteToUDPAddrPort(probePacket(0, ai.cid, nonce), endpoint)
+	relayQuiet(t, stranger)
+	a.WriteToUDPAddrPort(probePacket(0, ai.cid+1, nonce), endpoint)
+	relayQuiet(t, a)
+	a.WriteToUDPAddrPort(probePacket(0, ai.cid, nonce), endpoint)
+	reply, _ := relayRead(t, a)
+	pong, _, err := prudp.ParseFrame(reply, 0)
+	if err != nil || pong.Type != prudp.USER || pong.Payload[0] != 1 || binary.LittleEndian.Uint32(pong.Payload[1:]) != bi.cid || !bytes.Equal(pong.Payload[5:], nonce) {
+		t.Fatal("browse did not receive native alternate reachability reply", err)
+	}
+	challenge, from := relayRead(t, a)
+	cp, _, err := prudp.ParseFrame(challenge, 0)
+	if err != nil || cp.Payload[0] != 0 {
+		t.Fatal("missing mapping proof", err)
+	}
+	a.WriteToUDPAddrPort(probePacket(1, ai.cid, cp.Payload[5:]), from)
+	otherEndpoint := p.sockets[0].LocalAddr().(*net.UDPAddr).AddrPort()
+	b.WriteToUDPAddrPort(probePacket(0, bi.cid, nonce), otherEndpoint)
+	relayRead(t, b) // reachability reply
+	bChallenge, bFrom := relayRead(t, b)
+	bp, _, err := prudp.ParseFrame(bChallenge, 0)
+	if err != nil || bp.Payload[0] != 0 {
+		t.Fatal("missing other mapping proof", err)
+	}
+	b.WriteToUDPAddrPort(probePacket(1, bi.cid, bp.Payload[5:]), bFrom)
+	data, _ := (prudp.Packet{Source: 0x11, Destination: 0x11, Type: prudp.DATA, Payload: []byte("not yet connected")}).Marshal(0)
+	a.WriteToUDPAddrPort(data, endpoint)
+	relayQuiet(t, b)
+	r.mu.Lock()
+	active, proved, packets := p.active, p.mapping[0].proved && p.mapping[1].proved, p.packets
+	r.mu.Unlock()
+	if active || !proved || packets != [2]uint64{} || len(r.drainInstructions()) != 0 {
+		t.Fatal("reachability check activated native forwarding")
+	}
+	syn, _ := (prudp.Packet{Source: 0x11, Destination: 0x11, Type: prudp.SYN, Flags: prudp.FlagNeedsAck | prudp.FlagSize, ConnectionSignature: 123}).Marshal(0)
+	a.WriteToUDPAddrPort(syn, endpoint)
+	forwarded, _ := relayRead(t, b)
+	if !bytes.Equal(forwarded, syn) {
+		t.Fatal("selected fallback did not forward native SYN")
+	}
+	r.mu.Lock()
+	active = p.active
+	r.mu.Unlock()
+	intro := r.drainInstructions()
+	if !active || len(intro) != 1 || intro[0].Peer != bi.peer {
+		t.Fatal("selecting alternate did not activate the existing candidate")
+	}
+}
+
 func TestNativeProbeMatchesRetailFrame(t *testing.T) {
 	// Successful two-PC capture: USER stream 5, request, RVCID 1, timing echo.
 	want, err := hex.DecodeString("515105000000000000000001000000dcd54100000000009b")

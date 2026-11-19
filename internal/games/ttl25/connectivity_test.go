@@ -2,11 +2,81 @@ package ttl25
 
 import (
 	"encoding/binary"
+	"fmt"
+	"net/netip"
 	"strings"
 	"testing"
 
+	"github.com/princebyyourlogic/quetzal/internal/protocol/prudp"
 	"github.com/princebyyourlogic/quetzal/internal/protocol/quazal"
 )
+
+func TestAdaptiveBrowseHasGroupedFallbackForEveryParticipant(t *testing.T) {
+	f := newCommunityFixture(t)
+	r, _, _, host, browser := relayTestFixture(t)
+	r.cfg.LastPort = r.cfg.FirstPort + 63
+	s := f.c.sessions
+	s.relay = r
+	f.pa, f.pb = host.peer, browser.peer
+	s.registered(f.pa, f.a.PID, host.url)
+	s.registered(f.pb, f.b.PID, browser.url)
+	b, err := s.register(f.pa, f.a.PID, sessionArgs("Adaptive room", 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	gid := binary.LittleEndian.Uint32(b)
+	b, err = s.lobby(f.pa, f.a.PID, quazal.Request{Method: 26, Args: rankingString(rankingU32(nil, gid), host.url)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantBool(t, b, true)
+	for i := range 16 {
+		peer, pid, url := f.pa, f.a.PID, host.url
+		if i != 0 {
+			pid = uint32(2000 + i)
+			peer = prudp.Peer{ID: uint64(100 + i), LocalPort: 30121, Addr: netip.MustParseAddrPort(fmt.Sprintf("127.0.0.1:%d", 40000+i))}
+			url = relayStationURL(fmt.Sprintf("prudp:/stream=3;sid=15;PID=%d", pid), peer.Addr, uint32(100+i))
+			s.registered(peer, pid, url)
+		}
+		b, err = s.lobby(peer, pid, quazal.Request{Method: 11, Args: rankingString(rankingU32(nil, gid), "")})
+		if err != nil {
+			t.Fatal(err)
+		}
+		wantBool(t, b, true)
+	}
+	b, err = s.lobby(f.pb, f.b.PID, quazal.Request{Method: 16, Args: rankingU32(nil, gid)})
+	reader := rankingReader{b: b}
+	if err != nil || reader.u32() != 32 {
+		t.Fatal("16-player browse lacks all direct and alternate candidates", err)
+	}
+	var urls []string
+	for range 16 {
+		direct, alternate := reader.str(), reader.str()
+		if direct == alternate || stationField(direct, "PID") != stationField(alternate, "PID") || stationField(direct, "RVCID") != stationField(alternate, "RVCID") {
+			t.Fatal("candidate identities or adjacent peer grouping changed")
+		}
+		if _, _, issued := r.probeTarget(ownerOf(f.pb, f.b.PID), alternate); !issued {
+			t.Fatal("browse alternate not scoped to registered browser")
+		}
+		urls = append(urls, direct, alternate)
+	}
+	if !reader.done() {
+		t.Fatal("browse URL trailing data")
+	}
+	targets, err := s.probeTargets(f.pb, f.b.PID, urls)
+	if err != nil || len(targets) != 16 || len(r.drainInstructions()) != 0 {
+		t.Fatal("browse altered direct introduction or activated relay", err)
+	}
+	for _, p := range r.pairs {
+		if p.active {
+			t.Fatal("publishing browse candidates activated forwarding")
+		}
+	}
+	before := len(r.pairs)
+	if later, err := s.connectionURLs(f.pb, f.b.PID, 0, f.a.PID); err != nil || len(later) != 2 || len(r.pairs) != before {
+		t.Fatal("join failed to reuse browse candidate", err)
+	}
+}
 
 func TestForcedRelayAdvertisesEarlyURLsAndKeepsNATIntroductionVirtual(t *testing.T) {
 	f := newCommunityFixture(t)

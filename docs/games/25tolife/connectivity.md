@@ -146,7 +146,9 @@ separate pool defaults to UDP **30200–30327**, configurable with
 2–512 unprivileged ports, cannot overlap backend listeners, and allocates two
 sockets per admitted connector/host pair. No Angelware ports are reused.
 
-SecureConnection 11/3 supplies adaptive candidates. Forced mode also rewrites
+SecureConnection 11/3 supplies adaptive candidates. Adaptive participant URL
+replies (21/16 and 50/4) now supply them before browse reachability checks too.
+Forced mode also rewrites
 the earlier participant/host URL replies (21/16, 21/28 and 50/4); leaving those
 direct lets the title connect before the later lookup. Only authenticated, live,
 accessible published-room lookups allocate a route. Private rooms require
@@ -156,6 +158,39 @@ and its virtual endpoint second; forced mode returns only the virtual endpoint.
 Forced participant URL replies retain each player’s identity and return its
 pair-specific virtual endpoint. Reverse lookups reuse the same pair. Forced
 mode fails closed on exhausted capacity rather than silently returning direct.
+
+### Browse reachability precedes joining
+
+A hosted incident showed repeated `101/2` searches returning a public, non-full
+room with no filter mismatches, followed by `21/16` returning eleven direct
+participant URLs. The user reported that it was absent from browsing but could
+be joined through Recent Players. That later path requested `11/3`, selected
+the native alternate SYN, proved both relay mappings and entered the room.
+The discovery response itself was not missing the gathering.
+
+Stock browser `0x0034bb60` fetches participant URLs; `0x00350e90` starts their
+probes through `0x00545360`. Poller `0x00350ee8` waits up to five seconds for
+`0x00545710`. The latter groups a participant's alternatives, takes the minimum
+successful latency within each group, and returns failure if any group has no
+reachable endpoint. Result builder `0x0034c3f8` omits failed-ping rooms, and also
+omits full rooms. Consequently, even a non-host participant can make a public
+room disappear when all its advertised addresses are unreachable.
+
+Adaptive replies now retain direct-first, adjacent direct/virtual alternatives
+for each live participant. A stock 16-player room fits the protocol-3 limit of
+32 URLs. Larger synthetic gatherings retain all direct URLs within that budget;
+the existing bounded relay pool can also fall back to direct-only publication
+on exhausted capacity. Later connection lookup reuses the issued pair.
+
+An inactive candidate accepts only the native USER reachability exchange from
+its registered source address and CID, and challenges its observed UDP mapping.
+These probes do not activate forwarding, introduce another virtual peer, or
+forward DATA. A native alternate SYN still activates the route and obtains the
+other peer's mapping proof before forwarding traffic. Thus browsing can verify
+the fallback path without switching every reachable match to relay gameplay.
+Logs distinguish participant URL count, native reachability probes, actual SYN
+activation and forwarding. Retail browse visibility after this correction still
+requires confirmation; backend search success alone does not establish it.
 
 The endpoint state machine supplies the fallback timing. `0x002d34e8` groups
 public addresses while preserving their order within that group;

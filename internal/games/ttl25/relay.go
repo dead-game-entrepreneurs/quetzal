@@ -347,8 +347,15 @@ func (r *nativeRelay) receive(p *relayPair, destination int, from netip.AddrPort
 			r.flush(p, now)
 			return
 		}
-		if body[0] != 0 || !p.active {
+		if body[0] != 0 {
 			return
+		}
+		// Browsing probes alternatives before any session SYN exists. Answer
+		// this known account/CID's reachability check and prove its mapping,
+		// while retaining SYN-only activation for actual native forwarding.
+		if !p.active && m.sent.IsZero() {
+			r.log.Info("native relay reachability probe", "gid", p.key.gid,
+				"pid", p.identities[source].owner.pid, "active", false)
 		}
 		r.send(p, destination, from, probePacket(1, p.identities[destination].cid, body[5:]))
 		if !m.proved || m.address != from {
@@ -386,7 +393,7 @@ func (r *nativeRelay) forward(p *relayPair, source int, wire []byte, now time.Ti
 	p.last = now
 }
 func (r *nativeRelay) flush(p *relayPair, now time.Time) {
-	if !p.mapping[0].proved || !p.mapping[1].proved {
+	if !p.active || !p.mapping[0].proved || !p.mapping[1].proved {
 		return
 	}
 	for source := range p.mapping {

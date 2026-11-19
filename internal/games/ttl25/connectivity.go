@@ -78,9 +78,7 @@ func (s *sessionRegistry) probeTargets(peer prudp.Peer, pid uint32, urls []strin
 	return targets, nil
 }
 
-// The title uses participant URLs before SecureConnection 11/3. Forced mode
-// must select the virtual endpoint here as well to avoid a prior direct join.
-// Adaptive mode retains the proven direct introduction and later candidate list.
+// Forced mode selects the virtual endpoint even before SecureConnection 11/3.
 // Caller holds s.mu throughout lookup and relay candidate publication.
 func (s *sessionRegistry) forcedURL(caller, remote sessionOwner, gid uint32, direct string) string {
 	if s.relay == nil || s.relay.cfg.Mode != "relay" || caller == remote {
@@ -102,12 +100,15 @@ func (s *sessionRegistry) forcedURL(caller, remote sessionOwner, gid uint32, dir
 	return urls[0]
 }
 
+// Browse requires a successful native ping for every participant, before 11/3.
+// Keep alternatives adjacent and within the protocol-3 URL budget.
 func (s *sessionRegistry) participantURLsFor(caller sessionOwner, gid uint32, room sessionRecord) []string {
 	list := s.participantURLs(room)
-	if s.relay == nil || s.relay.cfg.Mode != "relay" {
+	if s.relay == nil {
 		return list
 	}
 	var result []string
+	spare := max(0, 32-len(list))
 	for _, url := range list {
 		remote := room.owner
 		if room.url == "" || nativeStationURL(room.url) != url {
@@ -118,7 +119,23 @@ func (s *sessionRegistry) participantURLsFor(caller sessionOwner, gid uint32, ro
 				}
 			}
 		}
-		if routed := s.forcedURL(caller, remote, gid, url); routed != "" {
+		if s.relay.cfg.Mode == "adaptive" {
+			candidates := []string{url}
+			aPeer, aLive := s.peers[caller]
+			bPeer, bLive := s.peers[remote]
+			// Preserve every direct participant, and keep alternate URLs for a
+			// participant adjacent: retail groups them by PID/RVCID. Protocol 3/1
+			// accepts at most 32 URLs; the stock 16-player room fits both per peer.
+			if caller != remote && aLive && bLive && spare > 0 {
+				aCID, _ := strconv.ParseUint(stationField(s.urls[caller], "CID"), 10, 32)
+				bCID, _ := strconv.ParseUint(stationField(s.urls[remote], "CID"), 10, 32)
+				a := relayIdentity{caller, aPeer, uint32(aCID), s.urls[caller]}
+				b := relayIdentity{remote, bPeer, uint32(bCID), url}
+				candidates = s.relay.offer(gid, a, b, url)
+				spare -= len(candidates) - 1
+			}
+			result = append(result, candidates...)
+		} else if routed := s.forcedURL(caller, remote, gid, url); routed != "" {
 			result = append(result, routed)
 		}
 	}
