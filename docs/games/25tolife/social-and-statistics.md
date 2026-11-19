@@ -132,16 +132,33 @@ arguments were exactly a zero list count and no values. These are valid empty
 personal reports, not truncated 87-value vectors. They are now acknowledged
 without creating or clearing statistics or adding replay receipts. Exact caller
 reporting authority is still required; nonempty vectors must contain all 87
-finite values. Existing snapshots are preserved. `statistics personal report
+finite values. Existing totals are preserved. `statistics personal report
 skipped` logs distinguish an accepted empty report from a persisted full report.
 
 The UI label table at `0x00630690` lists rating, clan rating, sessions, MVPs,
 kills, headshots, raid captures, robbery escapes, tags, deaths, suicides,
 kill/death ratio, team/clan/NPC kills, won/lost rounds, apprehensions,
 apprehended, shots fired/hit, accuracy and most-played mode. **UI table order
-is not yet established as wire-vector order.** The replacement retains reported
-chunks as snapshots and composes the 15+87 record. Runtime/gathering/PID/chunk
-receipts make identical retries harmless and reject conflicting repeats.
+does not match wire-vector order.** Renderer `0x00192878` derives these UI
+values from the raw 102-counter record. For example, overall kills add wire
+indexes 9 and 11, deaths add indexes 24 and 25, and sessions add indexes 4 and 7.
+The renderer computes kill/death ratio and accuracy by division, and selects
+most-played mode from accumulated mode durations. These derived values are
+not stored in their UI label positions in the wire vector.
+
+Both reported chunks contain round deltas. The replacement accumulates their
+raw counters into the 15+87 career record. Previously it replaced each chunk
+with the latest round, making Statistics show that round's kills instead of
+the career total. Runtime/gathering/PID/chunk receipts make identical retries
+harmless and reject conflicting repeats; authenticated participant reports
+still cannot add a second copy of the host's aggregate. Nonfinite sums fail
+without changing the record or adding a receipt. Accumulation and retry
+protection survive persistence and reload.
+
+Historical overwritten values can be restored only from retained reports or
+backups that match the persisted receipt digests. A digest alone cannot recover
+its original counters. Rebuild each accepted receipt once; do not add recovered
+rounds on top of a snapshot that is already included in those receipts.
 The original derived-stat calculations and ranking formula are not recovered.
 The current local ranking policy sorts by the first gathering value, ties by
 PID, and sums that value for clan rating. Clan-kill summary remains unset until

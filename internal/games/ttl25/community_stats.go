@@ -188,8 +188,9 @@ func (c *community) statistics(peer prudp.Peer, pid uint32, request quazal.Reque
 	return b, nil
 }
 
-// Both vectors are retained as reported snapshots. Replaying the same
-// gathering/PID/chunk is harmless; a conflicting second report is rejected.
+// Both vectors contain round deltas. The retail UI derives ratios and most-
+// played mode from their accumulated raw counters. Gathering/PID/chunk receipts
+// make retries harmless; a conflicting second report is rejected.
 func recordStats(s *communityState, pid uint32, key string, offset int, values []float32, now int64) error {
 	key = fmt.Sprintf("%s:%d", key, pid)
 	digest := reportDigest(values)
@@ -209,7 +210,16 @@ func recordStats(s *communityState, pid uint32, key string, offset int, values [
 	if offset < 0 || offset+len(values) > 102 || !finiteValues(values) {
 		return quazal.ErrRMC
 	}
-	copy(stats.Values[offset:], values)
+	// Validate the complete sum before publishing any of it, including when
+	// this helper is used outside a persistence transaction.
+	merged := append([]float32(nil), stats.Values...)
+	for i, value := range values {
+		merged[offset+i] += value
+	}
+	if !finiteValues(merged) {
+		return errors.New("statistics accumulation exceeds finite range")
+	}
+	stats.Values = merged
 	stats.Updated = now
 	s.Stats[pid] = stats
 	s.Reports[key] = digest
