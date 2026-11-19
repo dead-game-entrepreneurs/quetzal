@@ -45,6 +45,10 @@ forced by this change. The growing lobby countdown still needs a fresh stock
 client test after the transport correction; it is not classified as ordinary
 late-join waiting behavior.
 
+See [native clock synchronization](clock-synchronization.md) for the measured
+relay forwarding delay, retail correction handlers and remaining constraints
+on server-driven resynchronization.
+
 ## Native NAT traversal
 
 The retail NATTraversal protocol uses these RMC operations:

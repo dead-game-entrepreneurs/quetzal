@@ -304,6 +304,25 @@ Officers cannot remove the leader or other officers. Each mutation commits
 atomically. The size limit and remaining policy choices are local defaults
 pending retail verification.
 
+### A clan-statistics error can precede any backend request
+
+The string-table entry at `0x005a0000`, index 196 from base `0x0059fcf0`, is
+"Failed to retrieve clan statistics." The stock state functions
+`0x00347d58`, `0x003480d8`, `0x00348408` and `0x003486a8` select this error when
+their request-start helpers return false. Those paths include player-statistics
+queries as well as the clan leaderboard. The text alone does not identify a
+rejected clan service response or malformed clan record.
+
+In a later post-round report, the affected connection first lost acknowledgement
+of a small routine `101/8` reply. The replacement sent the original reply and
+20 retransmissions before retiring that exact connection after roughly 16.6
+seconds. Incoming retries continued; no subsequent clan-statistics request was
+present in the captured interval before the player reauthenticated. This is
+consistent with the later statistics operation failing locally on a lost
+connection, not evidence for adding a permissive clan response. The longer
+retry grace did not cure that incident. The return-path/client receive failure
+still requires investigation; server-side transmission is not proof of receipt.
+
 ## Validation and remaining evidence
 
 All documented protocol-101 operations are covered by handler/envelope tests.
