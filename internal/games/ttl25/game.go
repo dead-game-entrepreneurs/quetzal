@@ -115,12 +115,15 @@ func Definition(log *slog.Logger, publicIP netip.Addr, stateDir string, key quaz
 	return game.Definition{Key: "25tolife", Game: "25tolife", HTTPPaths: []string{"/TTL/", "/connectivity"}, ReservedUDP: reserved, UDPPorts: []int{30120, 30121, 10100, 10105, 10110}, HTTP: relayDiagnostics(PatchHandler(log), sessions.relay), Auxiliary: auxiliary, Mode: "accounts_experimental",
 		NewUDP: func(conn *net.UDPConn, observe func(string, netip.AddrPort, netip.AddrPort, []byte) error) (game.UDPService, error) {
 			var handler prudp.Handler = auth
+			var keepAlive time.Duration
 			if conn.LocalAddr().(*net.UDPAddr).Port == 30121 {
 				handler = secure
+				keepAlive = 5 * time.Second
 			}
 			return prudp.New(prudp.Options{Bind: conn.LocalAddr().(*net.UDPAddr).AddrPort(), Conn: conn, ChecksumSeed: 0xff,
 				PlainPayload: true, MaxDatagramSize: 1000, MaxRetries: 20, RetryInterval: 750 * time.Millisecond,
-				Observe: observe, Handler: handler, Log: log})
+				KeepAliveInterval: keepAlive,
+				Observe:           observe, Handler: handler, Log: log})
 		}}, nil
 }
 

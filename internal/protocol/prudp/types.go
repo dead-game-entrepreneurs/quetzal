@@ -74,4 +74,8 @@ type Options struct {
 	RetryInterval    time.Duration
 	HandshakeTimeout time.Duration
 	IdleTimeout      time.Duration
+	// KeepAliveInterval opts into periodic connected, unreliable PING requests.
+	// Zero disables server-initiated keepalives. They use a separate sequence
+	// space and never replace acknowledgement of reliable application DATA.
+	KeepAliveInterval time.Duration
 }

@@ -43,22 +43,26 @@ type transmission struct {
 	retries        int
 }
 type connection struct {
-	peer                       Peer
-	remoteCookie               uint32
-	session                    byte
-	expected, next             uint16
-	received                   map[uint16]Packet
-	receivedBytes              int
-	pending                    map[uint16]*transmission
-	fragments                  []byte
-	fragmentNext               byte
-	fragmentStarted            time.Time
-	last                       time.Time
-	connectRequest, connectAck []byte
-	localCookie                uint32
-	reconnectCookie            uint32
-	reconnectSignature         uint32
-	reconnectUntil             time.Time
+	peer                                     Peer
+	remoteCookie                             uint32
+	session                                  byte
+	expected, next                           uint16
+	received                                 map[uint16]Packet
+	receivedBytes                            int
+	pending                                  map[uint16]*transmission
+	fragments                                []byte
+	fragmentNext                             byte
+	fragmentStarted                          time.Time
+	last                                     time.Time
+	connectRequest, connectAck               []byte
+	localCookie                              uint32
+	reconnectCookie                          uint32
+	reconnectSignature                       uint32
+	reconnectUntil                           time.Time
+	lastKeepAlive, lastKeepAliveAck, lastAck time.Time
+	keepAliveSequence                        uint16
+	keepAliveSent, keepAliveAcknowledged     uint64
+	keepAlivePending                         bool
 }
 
 func New(opts Options) (*Server, error) {
@@ -91,6 +95,9 @@ func New(opts Options) (*Server, error) {
 	}
 	if opts.MaxPeers < 1 || opts.MaxPeers > 65536 || opts.MaxInFlight < 1 || opts.MaxInFlight > 4096 || opts.MaxMessageSize < 1 || opts.MaxMessageSize > 4<<20 || opts.MaxDatagramSize < 64 || opts.MaxDatagramSize > 65507 || opts.MaxRetries < 1 || opts.MaxRetries > 32 || opts.RetryInterval < time.Millisecond || opts.HandshakeTimeout < time.Millisecond || opts.IdleTimeout < time.Millisecond {
 		return nil, errors.New("invalid PRUDP limits")
+	}
+	if opts.KeepAliveInterval < 0 || opts.KeepAliveInterval > 0 && opts.KeepAliveInterval < time.Millisecond {
+		return nil, errors.New("invalid PRUDP keepalive interval")
 	}
 	if opts.Log == nil {
 		opts.Log = slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -266,6 +273,15 @@ func (s *Server) drop(k peerKey, reason string, attrs ...any) {
 	base := []any{"peer", c.peer.ID, "remote", c.peer.Addr,
 		"local_port", c.peer.LocalPort, "reason", reason, "pending_packets", len(c.pending),
 		"buffered_bytes", c.receivedBytes + len(c.fragments)}
+	if s.opts.KeepAliveInterval > 0 {
+		base = append(base, "keepalive_sent", c.keepAliveSent, "keepalive_acknowledged", c.keepAliveAcknowledged)
+		if !c.lastAck.IsZero() {
+			base = append(base, "last_ack_at", c.lastAck)
+		}
+		if !c.lastKeepAliveAck.IsZero() {
+			base = append(base, "last_keepalive_ack_at", c.lastKeepAliveAck)
+		}
+	}
 	s.opts.Log.Info("PRUDP disconnected", append(base, attrs...)...)
 	s.opts.Handler.Disconnect(c.peer)
 }
@@ -351,7 +367,7 @@ func (s *Server) receive(ctx context.Context, addr netip.AddrPort, p Packet, now
 		if session[0] == 0 {
 			session[0] = 1
 		}
-		c := &connection{peer: peer, localCookie: p.Signature, remoteCookie: p.ConnectionSignature, session: session[0], expected: 2, next: 1, received: make(map[uint16]Packet), pending: make(map[uint16]*transmission), fragmentNext: 1, last: now, connectRequest: append([]byte(nil), p.Payload...)}
+		c := &connection{peer: peer, localCookie: p.Signature, remoteCookie: p.ConnectionSignature, session: session[0], expected: 2, next: 1, received: make(map[uint16]Packet), pending: make(map[uint16]*transmission), fragmentNext: 1, last: now, lastKeepAlive: now, connectRequest: append([]byte(nil), p.Payload...)}
 		ack := s.base(c, CONNECT, FlagAck, p.Sequence)
 		ack.Payload = s.encodePayload(result.Payload)
 		c.connectAck, err = s.send(addr, ack)
@@ -380,8 +396,16 @@ func (s *Server) receive(ctx context.Context, addr netip.AddrPort, p Packet, now
 	p.Payload = payload
 	c.last = now
 	if p.Flags&FlagAck != 0 || p.Type == ACK {
+		if p.Type == PING && p.Flags&FlagAck != 0 && c.keepAlivePending && p.Sequence == c.keepAliveSequence {
+			c.keepAlivePending = false
+			c.lastKeepAliveAck, c.lastAck = now, now
+			c.keepAliveAcknowledged++
+			s.opts.Log.Debug("PRUDP keepalive acknowledged", "peer", c.peer.ID, "local_port", c.peer.LocalPort,
+				"sequence", p.Sequence, "rtt_ms", now.Sub(c.lastKeepAlive).Milliseconds())
+		}
 		if pending := c.pending[p.Sequence]; pending != nil && (p.Type == ACK || p.Type == pending.kind) && (p.Type != DATA || p.Fragment == pending.fragment) {
 			delete(c.pending, p.Sequence)
+			c.lastAck = now
 		}
 		return
 	}
@@ -601,6 +625,18 @@ func (s *Server) expire(now time.Time) {
 			p.retries++
 			p.sent = now
 		}
+		if s.peers[k] != c || s.opts.KeepAliveInterval == 0 || now.Sub(c.lastKeepAlive) < s.opts.KeepAliveInterval {
+			continue
+		}
+		sequence := c.keepAliveSequence + 1
+		if _, err := s.send(c.peer.Addr, s.base(c, PING, FlagNeedsAck, sequence)); err != nil {
+			s.drop(k, "keepalive write failed")
+			continue
+		}
+		c.keepAliveSequence, c.lastKeepAlive, c.keepAlivePending = sequence, now, true
+		c.keepAliveSent++
+		s.opts.Log.Debug("PRUDP keepalive sent", "peer", c.peer.ID, "local_port", c.peer.LocalPort,
+			"sequence", sequence, "last_receive_age_ms", now.Sub(c.last).Milliseconds())
 	}
 }
 

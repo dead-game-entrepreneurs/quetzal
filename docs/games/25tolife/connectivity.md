@@ -49,6 +49,36 @@ See [native clock synchronization](clock-synchronization.md) for the measured
 relay forwarding delay, retail correction handlers and remaining constraints
 on server-driven resynchronization.
 
+## Secure-service keepalives
+
+A subsequent failure was reported on a real PS2, independently of the laptop
+clock-slowdown example. The affected secure connection had no activated native
+relay route in that run. Its last successful and first unacknowledged routine
+alert replies had the same application data, consistent stream/session/cookie
+headers and valid checksums. The client continued transmitting, but no
+acknowledgement of the failed reply reached the server across 20 retries.
+Increasing the retry budget therefore did not establish a cure.
+
+Retail `0x002e5430` starts periodic PING requests after CONNECT handling on
+either endpoint. Builder `0x002e61c0` constructs type 4 with NEED_ACK, without
+reliable DATA ordering. The replacement previously answered client PINGs but
+never initiated this counterpart traffic.
+
+The 25 to Life secure service now opts into a five-second server PING interval.
+This is a replacement cadence, not a claim to reproduce every retail timing
+setting. Authentication endpoints and other title adapters retain their
+existing behavior. PING sequences are independent of reliable DATA; even a
+matching numeric PING acknowledgement cannot release a pending DATA reply.
+Outgoing PINGs do not refresh last-receive time or prevent bounded idle expiry.
+
+Debug events record PING sends and matched acknowledgements with RTT. Disconnect
+metadata includes sent/acknowledged totals and the last confirmed acknowledgement
+timestamps, without cookies, ticket data or RPC arguments. This distinguishes
+continued client transmission from demonstrated receipt of server traffic.
+The change restores missing endpoint behavior and improves the next diagnostic;
+retail verification is still needed before attributing the original disconnect
+to absent server keepalives. It does not change native gameplay clocks.
+
 ## Native NAT traversal
 
 The retail NATTraversal protocol uses these RMC operations:
