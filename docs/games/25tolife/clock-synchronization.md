@@ -28,8 +28,8 @@ packets to an already departed participant after its exit-drain window. These
 are not evidence of lost clock traffic on the affected host/joiner route.
 
 These measurements cover forwarding inside RackNerd, not WAN transit or receipt
-by either client. They do not decode and identify individual clock RPCs, and
-the capture is not a controlled reproduction of the half-speed laptop test.
+by either client. The forwarding measurements alone do not identify individual
+clock RPCs, and this is not a controlled reproduction of the half-speed test.
 They establish no substantial relay queue in that particular failure window;
 they do not establish that all timing failures are unrelated to the relay.
 
@@ -83,6 +83,53 @@ seconds and 42 seconds. This is not a retail test or a complete NetZ simulation;
 missed pulses, authority changes, processing delays and round-phase replication
 are not represented. It explains a possible lingering offset without proving
 the cause of the reported incidents.
+
+## Decoded native timing exchanges
+
+A subsequent offline decoder follows the title's native message pipeline:
+`0x002b7350` adds an inner checksum, applies the codec installed by
+`0x0037b5d8`, then invokes the cipher constructed by `0x0037da60`.
+The receive path reverses the cipher through `0x00478da8`, reads the codec's
+16-bit original-size prefix (`0` means uncompressed; otherwise LZO), and
+verifies the checksum through the algorithm at `0x00274bb0`. Length-prefixed
+messages then expose opcode 15 bundles and opcode 10 object RPCs. The latter
+have a 17-byte header followed by typed arguments. This layer is separate from
+backend plain/LZO wrapping and PRUDP frame checksums.
+
+The initial complete-message audit decoded 100,680 distinct directional
+native DATA payloads with valid inner checksums, decompression and message
+boundaries. Fragmented application messages were excluded. Repeated forwarding
+copies remain separate directions in that count; it is not a count of unique
+game actions. Clock candidates match the generated SyncRequest's eight-byte
+timestamp and SyncResponse's echoed timestamp, authority timestamp and
+four-byte processing delay. Observed runtime method IDs are capture-specific.
+
+In the previously audited five-minute stalled-lobby window, the affected
+joiner's route supplied 110 fresh requests and 105 responses. All 105 responses
+matched request timestamps. Relay-arrival request-to-response time was
+210.892–229.752 ms (median 215.864 ms); this includes the authority-side network
+leg and processing, and is not a full client RTT or relay residence time.
+The response processing field ranged from zero to three milliseconds.
+
+The requester's local timestamp advanced 218.264 seconds across 218.297 seconds
+of server wall time. Authority timestamps advanced 208.275 seconds across
+208.284 seconds. These observations show approximately normal clock progression
+during that window. Requests use local elapsed time, not the requester's
+corrected session time: their progression cannot establish agreement between
+the displayed clocks or exclude an already accumulated offset or stalled game
+phase. Five unmatched requests occurred at the end of the exchange; a capture
+at the relay alone cannot identify why responses ceased.
+
+A different route's requester advanced only 210.547 seconds across 217.085
+seconds of wall time, while its authority advanced approximately normally.
+This demonstrates a measurable client-side clock progression discrepancy in
+the capture, without identifying its cause or equating it with either the
+affected lobby or the separately reported real-console disconnect. No matching
+AdjustTime invocation was observed in these complete-message audits.
+
+Raw payloads, decoded game messages, the title's embedded cipher material and
+player/endpoint mappings remain outside the public repository. The decoder
+only reads private captures; it sends no packets and changes no client state.
 
 ## Resynchronization feasibility
 
