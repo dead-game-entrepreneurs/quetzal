@@ -5,6 +5,46 @@ TTLSession, and 21/16 returned its published host StationURL. The following
 request, protocol 3 method 1, failed because it was unsupported. This was a
 connection-establishment failure after discovery.
 
+## Round-start stalls and backend retry grace
+
+A last-second join was accepted into both the staging gathering and its round,
+but the player reported staying at a static match-in-progress screen rather than
+entering gameplay. Backend participation therefore cannot establish native game
+entry. A later reported lobby countdown continued beyond 100 while the host's
+new TTLRound stayed at state 0, without publishing its native endpoint or
+requesting the normal state-2 transition. The native start did not complete;
+the counter was not evidence that an active round's timer was advancing.
+
+The original participant's subsequent control disconnect was traced to a
+53-byte `101/8` alert reply. Its checksums were valid and its application payload
+matched the preceding acknowledged reply. No acknowledgement arrived across
+six sends, while the client kept retrying its own request. The shared transport
+default exhausted five retransmissions in roughly three seconds. In the later
+stalled lobby, a browse-triggered `3/2` fanout similarly left nine connections
+with an unacknowledged packet and expired all nine on that short budget.
+The captures do not establish why the clients stopped acknowledging, nor that
+the short budget caused the initial native round-start stall.
+
+Retail configuration registration `0x0037c7c0` exposes
+`prudp_max_retransmission` (data `0x0059f89c`, default 20) and `prudp_InitialRtt`
+(`0x0059f8c4`, default 750 ms). The 25 to Life backend now opts into 20 retries
+at 750 ms, a bounded approximately 15.75-second fixed-interval window. This is
+a replacement grace policy informed by retail defaults, not an implementation
+of the original RTT estimator/backoff algorithm. Other adapters retain their
+existing defaults. Connection replacement and explicit disconnect still retire
+an exact connection immediately; permanent packet loss still expires it.
+
+Disconnect diagnostics now include the pending sequence/type/fragment, retry
+count, age since first transmission and age since the last incoming packet.
+They contain no RPC arguments or ticket material. Regression coverage exercises
+a 4.25-second delayed acknowledgement and successful subsequent request, the
+old three-second failure as a control, and eventual expiry on permanent loss.
+
+The native round start, clock and ready-state traffic are not synthesized or
+forced by this change. The growing lobby countdown still needs a fresh stock
+client test after the transport correction; it is not classified as ordinary
+late-join waiting behavior.
+
 ## Native NAT traversal
 
 The retail NATTraversal protocol uses these RMC operations:

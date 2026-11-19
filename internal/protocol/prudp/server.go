@@ -39,6 +39,7 @@ type transmission struct {
 	wire           []byte
 	kind, fragment byte
 	sent           time.Time
+	started        time.Time
 	retries        int
 }
 type connection struct {
@@ -256,15 +257,16 @@ func (s *Server) send(addr netip.AddrPort, p Packet) ([]byte, error) {
 func (s *Server) base(c *connection, kind, flags byte, seq uint16) Packet {
 	return Packet{Source: c.peer.DestinationStream, Destination: c.peer.SourceStream, Type: kind, Flags: flags, Session: c.session, Signature: c.remoteCookie, Sequence: seq}
 }
-func (s *Server) drop(k peerKey, reason string) {
+func (s *Server) drop(k peerKey, reason string, attrs ...any) {
 	c := s.peers[k]
 	if c == nil {
 		return
 	}
 	delete(s.peers, k)
-	s.opts.Log.Info("PRUDP disconnected", "peer", c.peer.ID, "remote", c.peer.Addr,
+	base := []any{"peer", c.peer.ID, "remote", c.peer.Addr,
 		"local_port", c.peer.LocalPort, "reason", reason, "pending_packets", len(c.pending),
-		"buffered_bytes", c.receivedBytes+len(c.fragments))
+		"buffered_bytes", c.receivedBytes + len(c.fragments)}
+	s.opts.Log.Info("PRUDP disconnected", append(base, attrs...)...)
 	s.opts.Handler.Disconnect(c.peer)
 }
 func (s *Server) receive(ctx context.Context, addr netip.AddrPort, p Packet, now time.Time) {
@@ -563,7 +565,7 @@ func (s *Server) respond(c *connection, responses [][]byte, now time.Time) error
 			if err != nil {
 				return err
 			}
-			c.pending[p.Sequence] = &transmission{wire: wire, kind: DATA, fragment: p.Fragment, sent: now}
+			c.pending[p.Sequence] = &transmission{wire: wire, kind: DATA, fragment: p.Fragment, sent: now, started: now}
 		}
 	}
 	return nil
@@ -578,12 +580,18 @@ func (s *Server) expire(now time.Time) {
 			s.drop(k, "fragment timeout")
 			continue
 		}
-		for _, p := range c.pending {
+		for sequence, p := range c.pending {
 			if now.Sub(p.sent) < s.opts.RetryInterval {
 				continue
 			}
 			if p.retries >= s.opts.MaxRetries {
-				s.drop(k, "reliable retries exhausted")
+				var age int64
+				if !p.started.IsZero() {
+					age = now.Sub(p.started).Milliseconds()
+				}
+				s.drop(k, "reliable retries exhausted", "pending_sequence", sequence,
+					"pending_type", p.kind, "pending_fragment", p.fragment, "retry_count", p.retries,
+					"pending_age_ms", age, "last_receive_age_ms", now.Sub(c.last).Milliseconds())
 				break
 			}
 			if err := s.write(c.peer.Addr, p.wire); err != nil {
