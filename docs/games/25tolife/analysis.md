@@ -47,6 +47,10 @@ its successful no-update state. The tested deployment served an empty 404
 through an existing web server. Quetzal provides the same response on its HTTP
 listener; deploy a port-80 web server or proxy separately.
 
+The [native-updater trace](native-updater.md) covers the retail memory-card
+update path, archive reader, local file preparation and the limits established
+so far for using it to fix the disappearing MOTD.
+
 ## Transport and authentication
 
 Backend PRUDP uses checksum seed **0xff**. The initial guest request was

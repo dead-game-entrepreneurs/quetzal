@@ -140,3 +140,7 @@ and is not implemented. Re-entering online mode supplies the normal initial
 request again; no client patch or forced disconnect is used to refresh the
 message. A server-only workaround would need a verified native refresh event
 before deployment.
+
+The [native-updater investigation](native-updater.md) confirms the original
+game's memory-card update mechanism and documents why delivering this menu fix
+through it is not yet verified. That research does not introduce emulator patches.
