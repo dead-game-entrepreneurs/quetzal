@@ -112,3 +112,31 @@ locales, malformed JSON, NULs and unsupported control characters are rejected.
 Bad startup files fail configuration; a bad live edit logs a warning and keeps
 the last valid messages. Client reconnect/refresh is needed to request a new
 message already cached by the game.
+
+### Message disappears after leaving a room
+
+Retail testing confirmed the welcome message on initial online entry, followed
+by its disappearance when returning from a match/lobby. The observed secure
+connection requested `101/38` once at login, left its room through `50/1`, and
+did not request the MOTD again. Reconnecting produced a new `101/38` request.
+The server recorded no MOTD reload errors in that sequence.
+
+Read-only analysis of the unmodified SLUS-210.16 executable identifies the
+display lifecycle:
+
+- Multiplayer-menu entry `0x0018f9a8` explicitly calls `0x0016ca40` with an
+  empty string. That setter clears the title and body widgets (`0x11b` and
+  `0x11a`). This clears the display, not necessarily the cached message.
+- MOTD completion callback `0x0018fcd8` repopulates those widgets from the
+  online interface's cached buffer at `+0x3f8` after a successful request.
+- Request state `0x0034c8e8` invokes writer `0x003573e0`, then copies its result
+  into that buffer through `0x00342c18`. The latter converts the SDK string
+  into the title's bounded local text representation.
+
+This is an unresolved stock-client display limitation. No native server
+notification that reruns this menu refresh has been verified. Sending an
+unsolicited duplicate method-38 response is not a supported refresh mechanism
+and is not implemented. Re-entering online mode supplies the normal initial
+request again; no client patch or forced disconnect is used to refresh the
+message. A server-only workaround would need a verified native refresh event
+before deployment.
