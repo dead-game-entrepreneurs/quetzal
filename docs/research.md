@@ -25,6 +25,12 @@ resolves imports to named synthetic stubs and adds `PATCHLIB.bin` to the project
 Use `decompile-patcher` to inspect it. This analyzes the stock update-check
 module; it does not generate or install client patches.
 
+`python3 tools/inspect_25tolife_updater.py /path/to/SLUS_210.16 /path/to/MAIN.HOG`
+prints a read-only audit of the researched US build's native module-loader
+calls, menu linkage, configuration commands and disc-module imports. The
+[native-updater notes](games/25tolife/native-updater.md) explain those observations
+and the limits of using this updater to replace the compiled MOTD menu code.
+
 The exporter accepts addresses, `code:0xADDRESS`, `refs:TEXT`,
 `addrrefs:0xADDRESS`, `callers:0xADDRESS`, and `name:SUBSTRING`. Output includes
 the executable hash, language, references and direct calls. `code:` discovers

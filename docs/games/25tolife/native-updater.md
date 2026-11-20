@@ -100,9 +100,62 @@ at `0x00430fd8` can read a replaced module and invoke its normal entry point via
 main-executable function. `Patcher::_ApplyUpdateWork` (`PATCHLIB+0x1590`) is empty
 in this build.
 
-No intended menu-code replacement or MOTD refresh hook has been established in
-this update flow. Consequently, native updates are supported by the original
-PS2 game, but **using one for this MOTD fix remains unproven**. A complete result
-needs an accepted outer package, a verified application path to the menu change,
-and a real-console install/reboot/room-exit test. No emulator-specific patch or
-custom client update has been installed as part of this research.
+### Checking a replacement menu module
+
+Further tracing rules out simply putting a replacement menu module into an
+archive for this US executable:
+
+- The main executable's SNR2 record at `0x005f3080` has 350 linkage entries
+  (349 named). None names the multiplayer menu or MOTD. The menu-entry callback
+  slot at `0x00630d6c` contains the compiled address `0x0018f9a8` and has no
+  SNR2 relocation. Publishing a new module symbol does not replace that slot.
+- The main executable has one direct call to `snDllLoaded`, at `0x004310bc`
+  inside module manager `0x00430fd8`. That manager has four direct call sites:
+
+  | Call site | Module-loading context |
+  | --- | --- |
+  | `0x0018b240` | Start `PatchLib` before reading, downloading or activating an update. |
+  | `0x00232ca4` | Load `PatchExt` during game initialization. |
+  | `0x003451c0` | Initialize the DNAS module. |
+  | `0x0037c758` | Load `Voice` at startup or when returning from gameplay. |
+
+  The traced active-update interval reloads configuration and then releases the
+  archive; it does not call the module manager. A later module load therefore
+  cannot pick up an entry from that released archive.
+- Across the six `.REL` files in `MAIN.HOG`, only `PatchExt` imports
+  `snDllLoaded`. Its `PatchExtractor::LoadModule` methods are real code, but
+  neither the main executable nor the other disc modules imports those methods.
+  `PatchExtractor::Init` builds and verifies a content table; it does not execute
+  module entries found in it.
+- The configuration constructor `0x00457360` copies ten built-in commands from
+  `0x005a5a58`: `exec`, `global`, `context`, `end`, `verbosity`, `help`,
+  `contexts`, `list`, `save` and `echo`. `exec` at `0x004598b0` calls the text
+  configuration reader `0x00457f20`. It does not invoke the SNR2 loader.
+
+These findings explain the limitation: the normal updater supplies a temporary
+resource overlay and reloads configuration, while the MOTD reset remains in
+statically linked menu code. There is no established intended path to load and
+activate replacement menu code during that interval. The presence of generic
+module-loading support in `PatchExt` does not establish such a path.
+
+**A native-update-only MOTD fix is not currently available.** It would still need
+an application path that reaches the menu, in addition to an accepted package
+and a real-console install/reboot/room-exit test. The tracing does not establish
+that every possible native extension is impossible, or that another regional
+executable behaves identically. No emulator-specific patch or custom client
+update has been installed as part of this research.
+
+### Reproduce the static linkage audit
+
+With locally extracted retail files:
+
+```sh
+python3 tools/inspect_25tolife_updater.py \
+  /path/to/SLUS_210.16 /path/to/MAIN.HOG
+```
+
+The read-only helper prints the symbol/relocation observations, direct loader
+call sites, configuration command table and disc-module loader imports as JSON.
+It checks the ELF hash before using build-specific addresses. It reads module
+tables directly from the HOG without extracting or changing files. Application
+order still comes from the Ghidra trace above; this audit is not a hardware test.
