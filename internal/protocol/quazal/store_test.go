@@ -109,3 +109,39 @@ func TestContactAndPIDLookupPreserveProfileIsolation(t *testing.T) {
 		t.Fatal("contact/identity persistence")
 	}
 }
+
+func TestInnerSpaceNamePolicy(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "accounts.json")
+	store, err := OpenStoreWithNames(path, NamePolicy{InnerSpaces: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := quazalcrypto.Key{1, 2, 3}
+	for _, name := range []string{" Card", "Card ", "   ", "a\tb", "ab", "guest", "sixteen letters!"} {
+		if _, err := store.Create(name, key); !errors.Is(err, ErrAccountName) {
+			t.Fatalf("name %q: %v", name, err)
+		}
+	}
+	for _, name := range []string{"Card Shark", "a  b", "Mr X Y Z"} {
+		if _, err := store.Create(name, key); err != nil {
+			t.Fatalf("name %q: %v", name, err)
+		}
+	}
+	if _, err := store.Create("card shark", key); !errors.Is(err, ErrAccountExists) {
+		t.Fatal("case-insensitive duplicate with a space")
+	}
+	if a, ok := store.Lookup("CARD SHARK"); !ok || a.Name != "Card Shark" {
+		t.Fatal("lookup of a name with a space")
+	}
+	// The policy also governs names loaded from disk.
+	reopened, err := OpenStoreWithNames(path, NamePolicy{InnerSpaces: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := reopened.Lookup("Card Shark"); !ok {
+		t.Fatal("stored name lost on reopen")
+	}
+	if _, err := OpenStore(path); err == nil {
+		t.Fatal("default policy accepted a stored name with a space")
+	}
+}

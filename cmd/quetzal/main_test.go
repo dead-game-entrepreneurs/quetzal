@@ -151,3 +151,25 @@ func TestUnknownGameFailsBeforeCreatingState(t *testing.T) {
 		t.Fatal("created state for unknown game")
 	}
 }
+func TestWCCTenantIsolatesStateAndRejectsDefaultRelayOverlap(t *testing.T) {
+	cfg := testTenantsConfig(t)
+	cfg.Games = []string{"25tolife", "wcc"}
+	// WCC's retail auth port 30280 sits inside 25 to Life's default relay pool.
+	t.Setenv("QUETZAL_RELAY_MODE", "adaptive")
+	if _, _, err := buildTenants(cfg, testLog()); err == nil {
+		t.Fatal("accepted relay/WCC listener overlap")
+	}
+	t.Setenv("QUETZAL_RELAY_FIRST_PORT", "30400")
+	t.Setenv("QUETZAL_RELAY_LAST_PORT", "30527")
+	defs, cleanup, err := buildTenants(cfg, testLog())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanup()
+	if len(defs) != 2 || defs[1].Key != "wcc" || len(defs[1].UDPPorts) != 2 || defs[1].UDPPorts[0] != 30280 || defs[1].UDPPorts[1] != 30281 {
+		t.Fatalf("WCC definition %+v", defs[1])
+	}
+	if _, err := os.Stat(filepath.Join(cfg.StateDir, "tenants", "wcc", "principal.key")); err != nil {
+		t.Fatal("WCC tenant state not isolated", err)
+	}
+}

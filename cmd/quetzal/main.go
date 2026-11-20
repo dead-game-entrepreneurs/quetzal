@@ -17,6 +17,7 @@ import (
 	"github.com/princebyyourlogic/quetzal/internal/game"
 	"github.com/princebyyourlogic/quetzal/internal/games/tdu"
 	"github.com/princebyyourlogic/quetzal/internal/games/ttl25"
+	"github.com/princebyyourlogic/quetzal/internal/games/wcc"
 )
 
 func main() {
@@ -97,8 +98,8 @@ func buildTenants(cfg app.Config, log *slog.Logger) (defs []game.Definition, cle
 	// Reject unknown adapters before creating any state.
 	seen := map[string]bool{}
 	for _, key := range keys {
-		if key != "25tolife" && key != "tdu" {
-			return nil, cleanup, fmt.Errorf("unknown game %q; available: 25tolife,tdu", key)
+		if key != "25tolife" && key != "tdu" && key != "wcc" {
+			return nil, cleanup, fmt.Errorf("unknown game %q; available: 25tolife,tdu,wcc", key)
 		}
 		if seen[key] {
 			return nil, cleanup, fmt.Errorf("duplicate game %q", key)
@@ -127,6 +128,8 @@ func buildTenants(cfg app.Config, log *slog.Logger) (defs []game.Definition, cle
 				return defs, cleanup, fmt.Errorf("tenant %s config: %w", key, loadErr)
 			}
 			def, err = tdu.Definition(tenantLog, config, principal)
+		case "wcc":
+			def, err = wcc.Definition(tenantLog, cfg.PublicIP, dir, principal)
 		}
 		if err != nil {
 			return defs, cleanup, fmt.Errorf("tenant %s: %w", key, err)

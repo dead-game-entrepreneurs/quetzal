@@ -58,6 +58,11 @@ type Options struct {
 	GameProbe             func(peer prudp.Peer, pid uint32, urls []string) ([]prudp.Peer, error)
 	GameConnectionURLs    func(peer prudp.Peer, pid, connectionID, targetPID uint32) ([]string, error)
 	GameProbeInstructions func() []ProbeInstruction
+	// GameServerCalls optionally supplies other title-authorized server-to-
+	// client calls (for example notification events). They are drained with
+	// probe instructions, only to live, ticket-proven, registered named peers.
+	// Replies are not correlated and are ignored like other unsolicited replies.
+	GameServerCalls func() []ServerCall
 }
 
 type peerID struct {
@@ -331,7 +336,7 @@ func (s *Service) login(state *peerState, args []byte) ([]byte, error) {
 	if !r.done() {
 		return nil, ErrRMC
 	}
-	canonical, err := canonicalName(name)
+	canonical, err := s.options.Store.canonicalName(name)
 	if err != nil {
 		return nil, ErrAccountName
 	}

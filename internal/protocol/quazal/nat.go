@@ -15,6 +15,14 @@ type ProbeInstruction struct {
 	URL  string
 }
 
+// ServerCall is a title-authorized server-initiated RMC request to a live peer.
+type ServerCall struct {
+	Peer     prudp.Peer
+	Protocol byte
+	Method   uint32
+	Args     []byte
+}
+
 // The retail protocol-3 dispatcher at 0x5430e8 accepts a list of
 // StationURLs for method 1 and one StationURL for method 2. Both replies are
 // empty. Method 1 tells the target's live connection to probe the requester.
@@ -111,6 +119,20 @@ func (s *Service) DrainOutbound() []prudp.OutboundMessage {
 			}
 			other.probes[id] = now.Add(10 * time.Second)
 			s.outbound = append(s.outbound, prudp.OutboundMessage{Peer: instruction.Peer, Payload: wire})
+		}
+	}
+	if s.options.Role == Secure && s.options.GameServerCalls != nil {
+		for _, call := range s.options.GameServerCalls() {
+			other := s.peers[peerKey(call.Peer)]
+			if other == nil || !other.proof || !other.registered || other.guest || len(s.outbound) >= 128 {
+				continue
+			}
+			s.nextProbe++
+			wire, err := EncodeRequest(Request{Protocol: call.Protocol, Method: call.Method, CallID: s.nextProbe | 0x80000000, Args: call.Args})
+			if err != nil {
+				continue
+			}
+			s.outbound = append(s.outbound, prudp.OutboundMessage{Peer: call.Peer, Payload: wire})
 		}
 	}
 	out := s.outbound

@@ -59,26 +59,50 @@ type Store struct {
 	accounts map[string]Account
 	reserved map[uint32]bool
 	tickets  map[quazalcrypto.Key]*issuedTicket
+	names    NamePolicy
 }
 
-func canonicalName(name string) (string, error) {
+// NamePolicy is a title's account-name rule. The zero value is the original
+// rule: 3-15 printable ASCII characters without spaces.
+type NamePolicy struct {
+	// InnerSpaces also accepts spaces between other characters, but not at
+	// the start or end. World Championship Cards documents this rule in its
+	// own name-entry error text.
+	InnerSpaces bool
+}
+
+func (p NamePolicy) canonical(name string) (string, error) {
 	if len(name) < 3 || len(name) > 15 {
 		return "", ErrAccountName
 	}
 	for _, b := range []byte(name) {
+		if b == ' ' && p.InnerSpaces {
+			continue
+		}
 		if b < 0x21 || b > 0x7e {
 			return "", ErrAccountName
 		}
 	}
+	if name[0] == ' ' || name[len(name)-1] == ' ' {
+		return "", ErrAccountName
+	}
 	return strings.ToLower(name), nil
 }
 
-// OpenStore loads or creates a versioned JSON account file with mode 0600.
-func OpenStore(path string) (*Store, error) {
+// canonicalName applies this store's title name policy.
+func (s *Store) canonicalName(name string) (string, error) { return s.names.canonical(name) }
+
+// OpenStore loads or creates a versioned JSON account file with mode 0600,
+// using the default account-name rule.
+func OpenStore(path string) (*Store, error) { return OpenStoreWithNames(path, NamePolicy{}) }
+
+// OpenStoreWithNames is OpenStore with a title-specific account-name rule.
+// The rule also validates names already stored in the file.
+func OpenStoreWithNames(path string, names NamePolicy) (*Store, error) {
 	if path == "" {
 		return nil, errors.New("quazal: account store path is required")
 	}
-	s := &Store{path: path, nextPID: 1000, accounts: make(map[string]Account), reserved: map[uint32]bool{0: true, GuestPID: true}, tickets: make(map[quazalcrypto.Key]*issuedTicket)}
+	s := &Store{path: path, nextPID: 1000, accounts: make(map[string]Account), reserved: map[uint32]bool{0: true, GuestPID: true}, tickets: make(map[quazalcrypto.Key]*issuedTicket), names: names}
 	info, err := os.Lstat(path)
 	if errors.Is(err, os.ErrNotExist) {
 		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
@@ -118,7 +142,7 @@ func OpenStore(path string) (*Store, error) {
 	}
 	used := map[uint32]bool{0: true, GuestPID: true}
 	for _, row := range disk.Accounts {
-		name, err := canonicalName(row.Name)
+		name, err := s.canonicalName(row.Name)
 		if err != nil || name == guestName || row.PID < 1000 || used[row.PID] || row.PID >= disk.NextPID {
 			return nil, errors.New("quazal: invalid account identity in store")
 		}
@@ -202,7 +226,7 @@ func (s *Store) reservePID(pid uint32) error {
 }
 
 func (s *Store) Lookup(name string) (Account, bool) {
-	canonical, err := canonicalName(name)
+	canonical, err := s.canonicalName(name)
 	if err != nil {
 		return Account{}, false
 	}
@@ -286,7 +310,7 @@ func (s *Store) CreateWithContact(name string, initial quazalcrypto.Key, contact
 	if len(contact) > 255 {
 		return Account{}, errors.New("quazal: invalid contact")
 	}
-	canonical, err := canonicalName(name)
+	canonical, err := s.canonicalName(name)
 	if err != nil || canonical == guestName {
 		return Account{}, ErrAccountName
 	}

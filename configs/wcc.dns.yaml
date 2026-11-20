@@ -1,0 +1,6 @@
+# Example rule for revive-dns. Replace the documentation address with your server.
+# Preserve your existing DNAS forwarding rules.
+- service: quetzal-wcc
+  names:
+    - wcclive.quazal.net
+  answer: "203.0.113.10"

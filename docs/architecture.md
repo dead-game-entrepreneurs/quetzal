@@ -18,6 +18,7 @@ cryptography and traversal independent from DemonWare.
 | `internal/quazalcrypto` | Retail key derivation and authenticated ticket containers |
 | `internal/games/ttl25` | Eidos records, matchmaking, social operations, statistics and native relay policy |
 | `internal/games/tdu` | TDU tenant composition, native transport, sessions/presence, peer admission and title data |
+| `internal/games/wcc` | World Championship Cards gatherings, host migration and health checks |
 | `internal/state` | Private keys, state files and exclusive tenant locks |
 | `internal/capture` | Optional bounded packet recording |
 
@@ -78,6 +79,9 @@ location has its own `principal.key`, accounts and lock; TDU additionally persis
 `p2p.key` for its peer-wrapper resource and atomic `title-data.json` for reported
 statistics and challenge files. Enabling TDU does not move or merge
 25 to Life's working state.
+WCC likewise uses `QUETZAL_STATE_DIR/tenants/wcc/` for its own key and
+accounts; its gatherings are in memory only. Its store accepts spaces inside
+account names (`quazal.NamePolicy`), which the other titles reject.
 
 25 to Life account names, password-derived initial hashes, profiles and contact
 fields are private.
@@ -123,6 +127,23 @@ fully proved routes have a fixed five-second drain for native leave DATA and
 ACKs; no new handshake or mapping is admitted. Shutdown, unproved candidates
 and bounded idle expiry close routes immediately. See
 [connectivity](games/25tolife/connectivity.md) for limits and remaining tests.
+
+## World Championship Cards services
+
+WCC uses the shared Quazal login, ticket, registration and signup flow with
+checksum seed 0x2b and the plain raw/LZO wrapper on UDP 30280/30281. Its title
+adds MatchMaking 21 (with Ext 50) for `WCCGathering`, `WackyGathering` and
+`ChatGathering` records, plus Health/Monitoring pings 18/1 and 19/1. Gathering
+title fields stay opaque; the server validates the SDK base header and rewrites
+only the ID, owner and host. Gatherings belong to the exact registering
+connection. If the owner disconnects with participants present, they alone can
+claim it through 21/36 within 30 seconds; a gathering closes once its last
+participant leaves. 11/3 lookups and 3/1 probes are allowed between players
+sharing a gathering or toward anyone at a listed one; a lookup also makes
+the server send the target a 3/2 probe toward the requester. After 21/36 the
+remaining participants receive a 14/1 ownership-change event through the shared
+`GameServerCalls` hook, which delivers title-authorized server calls only to
+registered named peers. See [WCC notes](games/wcc/analysis.md).
 
 ## TDU native services
 

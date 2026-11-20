@@ -6,8 +6,9 @@
 
 <p align="center">
   A replacement for <b>Quazal Rendez-Vous / NetZ</b> online services,<br>
-  with a tested <b>25 to Life PS2</b> adapter and an experimental<br>
-  <b>Test Drive Unlimited PS2</b> backend, using stock client protocols.
+  with a tested <b>25 to Life PS2</b> adapter and experimental<br>
+  <b>Test Drive Unlimited</b> and <b>World Championship Cards</b> PS2 backends,<br>
+  using stock client protocols.
 </p>
 
 <p align="center">
@@ -21,7 +22,8 @@
   <a href="#dns-redirects">DNS redirects</a> ·
   <a href="#running-the-server">Running the server</a> ·
   <a href="docs/games/25tolife/analysis.md">25 to Life notes</a> ·
-  <a href="docs/games/tdu/online-map.md">TDU notes</a>
+  <a href="docs/games/tdu/online-map.md">TDU notes</a> ·
+  <a href="docs/games/wcc/analysis.md">WCC notes</a>
 </p>
 
 ---
@@ -76,7 +78,25 @@ stock clients own driving and race simulation. See the
 [run guide](docs/games/tdu/running.md) and
 [protocol map](docs/games/tdu/online-map.md).
 
-Both adapters can run in one process, with separate state, sockets and captures.
+**World Championship Cards** (US PS2, `SLUS-213.40`) is an experimental adapter.
+Up to three unmodified PCSX2 clients on one LAN have completed games:
+
+| Feature | Status |
+| --- | --- |
+| Account creation and login, including names with spaces | ✅ tested in game on three PCs |
+| Hosting, browsing, joining, Quick Join and in-table chat | ✅ tested in game |
+| Peer card play to the end of the game | ✅ two and three players on one LAN |
+| End-of-game table handoff and cleanup | ✅ handoff observed; cleanup fixed after testing |
+| Hosting from any PC (server-initiated NAT probe) | ✅ tested in game |
+| Three players at one table, including the host leaving mid-game | ✅ tested in game |
+| Host leaving an open table and rejoining it | ✅ tested in game |
+| Play across the Internet (different NATs) | 🧪 implemented; untested |
+| Chat-lobby rooms (`ChatGathering`) | Not reachable in the retail menus; handled like tables if used |
+| Voice, friends | Not implemented or established |
+
+See the [WCC notes](docs/games/wcc/analysis.md).
+
+All adapters can run in one process, with separate state, sockets and captures.
 Other Quazal titles still need their own adapters and verification.
 
 ## How it fits together
@@ -123,6 +143,9 @@ redirect port 80 to it. The tested setup used the empty-404 no-update path.
 For **TDU**, redirect `tdulive.quazal.net` to its reachable server IPv4 and keep
 DNAS separate. See the [TDU network setup](docs/games/tdu/running.md#network-setup-and-ports).
 
+For **World Championship Cards**, redirect `wcclive.quazal.net`; see
+[configs/wcc.dns.yaml](configs/wcc.dns.yaml). DNAS stays separate.
+
 ## Running the server
 
 You need Docker with Compose on a host supporting Linux host networking.
@@ -159,7 +182,9 @@ QUETZAL_RELAY_LAST_PORT=30527
 The old relay default **30200–30327 overlaps TDU's 30200/30201 listeners**.
 Startup rejects overlaps with static or lazy-reserved UDP ports and never
 silently changes ranges. Unknown or duplicate game keys also fail startup.
-TDU-only mode does not load 25 to Life relay settings.
+TDU-only mode does not load 25 to Life relay settings. WCC's auth port 30280
+also falls inside the old default relay pool, so combine it with 25 to Life
+relay/adaptive mode only after moving the pool as above.
 
 Allow or forward these **25 to Life** ports when that adapter is enabled:
 
@@ -181,6 +206,13 @@ TDU additionally requires these physical UDP listeners:
 | UDP 8124 | TDU native master assignment |
 | UDP 8122 | TDU encrypted native proxy and local services |
 
+World Championship Cards requires:
+
+| Port | Purpose |
+| --- | --- |
+| UDP 30280 | WCC authentication |
+| UDP 30281 | WCC ticket-authenticated services |
+
 Native service ports 9000–9004 are logical destinations inside the tunnel, not
 listeners. They need no firewall rules.
 The [TDU guide](docs/games/tdu/running.md) lists overrides and current limits.
@@ -199,7 +231,7 @@ states if an old room ID remains cached.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `QUETZAL_GAMES` | `25tolife` | Enabled adapters: `25tolife`, `tdu`, or both comma-separated |
+| `QUETZAL_GAMES` | `25tolife` | Enabled adapters, comma-separated: `25tolife`, `tdu`, `wcc` |
 | `QUETZAL_PUBLIC_IP` | bind address; set explicitly for hosting | Reachable server IPv4 |
 | `QUETZAL_BIND` | `127.0.0.1` (example uses `0.0.0.0`) | Local listener address |
 | `QUETZAL_HTTP_PORT` | `8082` | HTTP diagnostics and patch handler |
@@ -293,6 +325,7 @@ scripts/go build ./cmd/quetzal
 | `internal/quazalcrypto` | Retail key derivation and ticket containers |
 | `internal/games/ttl25` | 25 to Life codecs, matchmaking, friends, clans, stats and native relay |
 | `internal/games/tdu` | TDU adapter, native transport, sessions/presence, peer admission and title-data services |
+| `internal/games/wcc` | World Championship Cards matchmaking, migration and health checks |
 | `internal/state` | Private keys and exclusive tenant state ownership |
 | `internal/capture` | Optional bounded private recording |
 | `tools/`, `ghidra/scripts/` | Local disc analysis helpers; not used by the server |
