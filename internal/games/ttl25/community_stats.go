@@ -46,7 +46,7 @@ func (c *community) rankedPlayers() []uint32 {
 		ids = append(ids, id)
 	}
 	sort.Slice(ids, func(i, j int) bool {
-		a, b := c.state.Stats[ids[i]].Values[0], c.state.Stats[ids[j]].Values[0]
+		a, b := playerRating(c.state.Stats[ids[i]]), playerRating(c.state.Stats[ids[j]])
 		if a == b {
 			return ids[i] < ids[j]
 		}
@@ -55,14 +55,7 @@ func (c *community) rankedPlayers() []uint32 {
 	return ids
 }
 func (c *community) clanRating(clan clanRecord) int32 {
-	var rating float64
-	for pid := range clan.Members {
-		v := c.state.Stats[pid].Values
-		if len(v) == 102 {
-			rating += float64(v[0])
-		}
-	}
-	return int32(max(float64(math.MinInt32), min(rating, float64(math.MaxInt32))))
+	return clanSkill(clan)
 }
 func (c *community) rankedClans() []clanRecord {
 	v := make([]clanRecord, 0, len(c.state.Clans))
@@ -89,7 +82,19 @@ func (c *community) appendStats(b []byte, pid uint32) []byte {
 	b = rankingString(b, abbr)
 	b = append(b, floatBytes([]float32{rating, 0})...)
 	b = rankingU32(b, pid)
-	v := c.state.Stats[pid].Values
+	v := append([]float32(nil), c.state.Stats[pid].Values...)
+	if len(v) != 102 {
+		v = make([]float32, 102)
+	}
+	// Rating and ordinal rank are server-owned fields in the stock browser
+	// record, not client-supplied counters. Index 15 also feeds lobby d_rank.
+	v[0] = float32(playerRating(c.state.Stats[pid]))
+	v[1], v[2], v[15] = v[0], v[0], float32(c.playerRank(pid))
+	if c.sessions.log != nil {
+		number, stars := SkillIcon(c.playerRank(pid), float64(v[0]))
+		c.sessions.log.Debug("statistics rank returned", "pid", pid, "rating", v[0], "rank", v[15],
+			"expected_lobby_number", number, "expected_skill_stars", stars)
+	}
 	b = rankingU32(b, uint32(len(v)))
 	return append(b, floatBytes(v)...)
 }
@@ -110,6 +115,7 @@ func (c *community) statistics(peer prudp.Peer, pid uint32, request quazal.Reque
 		if !ok {
 			return nil, errors.New("personal statistics require active gathering participation")
 		}
+		members, ranked := c.sessions.ratingRoster(key)
 		if len(values) == 0 {
 			// Retail can finish a round without building a local personal row.
 			// Acknowledge its empty list without inventing or clearing statistics.
@@ -117,10 +123,38 @@ func (c *community) statistics(peer prudp.Peer, pid uint32, request quazal.Reque
 				c.sessions.log.Info("statistics personal report skipped", "pid", pid, "peer", peer.ID,
 					"local_port", peer.LocalPort, "accepted", true, "reason", "empty personal vector")
 			}
+			if ranked {
+				return c.transaction(func(s *communityState) ([]byte, error) {
+					round, err := c.prepareRating(s, key, members)
+					if err != nil || round.Done {
+						return nil, err
+					}
+					round.Skipped[pid] = true
+					s.RatingRounds[key] = round
+					settleRating(s, key, c.now().Unix())
+					return nil, nil
+				})
+			}
 			return nil, nil
 		}
 		return c.transaction(func(s *communityState) ([]byte, error) {
-			return nil, recordStats(s, pid, key+":personal", 15, values, c.now().Unix())
+			receipt := fmt.Sprintf("%s:personal:%d", key, pid)
+			_, duplicate := s.Reports[receipt]
+			if err := recordStats(s, pid, key+":personal", 15, values, c.now().Unix()); err != nil {
+				return nil, err
+			}
+			if ranked && !duplicate {
+				round, err := c.prepareRating(s, key, members)
+				if err != nil {
+					return nil, err
+				}
+				if !round.Done {
+					round.Personal[pid] = append([]float32(nil), values...)
+					s.RatingRounds[key] = round
+					settleRating(s, key, c.now().Unix())
+				}
+			}
+			return nil, nil
 		})
 	}
 	ids := []uint32{}
@@ -131,11 +165,8 @@ func (c *community) statistics(peer prudp.Peer, pid uint32, request quazal.Reque
 			return nil, quazal.ErrRMC
 		}
 		position := uint32(0)
-		for i, id := range c.rankedPlayers() {
-			if id == target {
-				position = uint32(i + 1)
-				break
-			}
+		if _, exists := c.state.Stats[target]; exists {
+			position = c.playerRank(target)
 		}
 		return rankingU32(nil, position), nil
 	case 5:
@@ -285,10 +316,25 @@ func (c *community) gatheringReport(peer prudp.Peer, pid uint32, args []byte) ([
 		}
 		return result(true, "participant acknowledged without aggregate write", mismatches)
 	}
+	membersForRating, ranked := c.sessions.ratingRoster(key)
 	b, err := c.transaction(func(s *communityState) ([]byte, error) {
 		for _, report := range reports {
 			if err := recordStats(s, report.pid, key+":gathering", 0, report.values, c.now().Unix()); err != nil {
 				return nil, err
+			}
+		}
+		if ranked {
+			round, err := c.prepareRating(s, key, membersForRating)
+			if err != nil {
+				return nil, err
+			}
+			if !round.Ready && !round.Done {
+				round.Ready = true
+				for _, report := range reports {
+					round.Expected = append(round.Expected, report.pid)
+				}
+				s.RatingRounds[key] = round
+				settleRating(s, key, c.now().Unix())
 			}
 		}
 		return boolReply(true), nil

@@ -26,6 +26,7 @@ type clanRecord struct {
 	Leader  uint32          `json:"leader"`
 	Members map[uint32]bool `json:"members"` // bool is officer, leader tracked separately
 	Notices []clanNotice    `json:"notices"`
+	Rating  *int32          `json:"rating,omitempty"`
 }
 type clanNotice struct{ From, Body string }
 type clanInvitation struct {
@@ -35,6 +36,7 @@ type clanInvitation struct {
 type playerStatistics struct {
 	Values  []float32 `json:"values"`
 	Updated int64     `json:"updated"`
+	Rating  *float64  `json:"rating,omitempty"`
 }
 type communityState struct {
 	Version       int                         `json:"version"`
@@ -50,6 +52,7 @@ type communityState struct {
 	Stats         map[uint32]playerStatistics `json:"statistics"`
 	Reports       map[string]string           `json:"report_digests"`
 	Competitors   map[uint32]bool             `json:"ranking_participants"`
+	RatingRounds  map[string]ratingRound      `json:"rating_rounds,omitempty"`
 }
 type community struct {
 	mu       sync.Mutex
@@ -59,6 +62,7 @@ type community struct {
 	sessions *sessionRegistry
 	now      func() time.Time
 	online   map[sessionOwner]string
+	motd     *messageOfDay
 }
 
 func initialCommunity() communityState {
@@ -122,6 +126,17 @@ func validateCommunity(s communityState) error {
 		if pid < 1000 || len(stats.Values) != 102 || !finiteValues(stats.Values) {
 			return errors.New("invalid stored statistics")
 		}
+		if stats.Rating != nil && !validRating(*stats.Rating) {
+			return errors.New("invalid stored rating")
+		}
+	}
+	for _, clan := range s.Clans {
+		if clan.Rating != nil && *clan.Rating < 0 {
+			return errors.New("invalid clan rating")
+		}
+	}
+	if err := validateRatingRounds(s.RatingRounds); err != nil {
+		return err
 	}
 	return nil
 }
@@ -280,6 +295,13 @@ func (c *community) handle(peer prudp.Peer, pid uint32, request quazal.Request) 
 		return c.statistics(peer, pid, request)
 	case request.Method == 39:
 		return c.accountInfo(pid, request.Args)
+	case request.Method == 38:
+		r := rankingReader{b: request.Args}
+		locale := r.strLimit(64)
+		if !r.done() {
+			return nil, quazal.ErrRMC
+		}
+		return rankingString(nil, c.motd.message(locale)), nil
 	default:
 		return socialBootstrap(request)
 	}

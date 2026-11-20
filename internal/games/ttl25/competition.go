@@ -25,6 +25,14 @@ func (s *sessionRegistry) registerCompetitionRound(peer prudp.Peer, pid uint32, 
 		return boolReply(false), nil
 	}
 	room.fields["competition"] = strconv.FormatUint(uint64(competition), 10)
+	// Capture the host staging room's ranked setting before either room exits.
+	// A competition association alone must not turn an unranked match into one.
+	room.fields["rated"] = "0"
+	for _, staging := range s.rooms {
+		if staging.data.Type == "TTLSession" && staging.owner == room.owner && staging.fields["isRanked"] == "1" {
+			room.fields["rated"] = "1"
+		}
+	}
 	s.rooms[gid] = room
 	return boolReply(true), nil
 }

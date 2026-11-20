@@ -261,6 +261,15 @@ func (s *sessionRegistry) update(peer prudp.Peer, pid uint32, args []byte) ([]by
 	binary.LittleEndian.PutUint32(room.data.Payload[8:], pid)
 	binary.LittleEndian.PutUint32(room.data.Payload[12:], pid)
 	room.input = rankingAny(nil, quazal.AnyData{Type: kind, Payload: clean})
+	if kind == "TTLRound" {
+		// These are authenticated server associations, not client wire fields.
+		// A normal round update must retain the ranking selected by 26/2.
+		for _, key := range []string{"competition", "rated"} {
+			if value, exists := room.fields[key]; exists {
+				fields[key] = value
+			}
+		}
+	}
 	room.fields = fields
 	room.state = binary.LittleEndian.Uint32(data[32:])
 	// The host observes native session membership. Backend participation can

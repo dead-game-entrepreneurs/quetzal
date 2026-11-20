@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -51,14 +52,26 @@ func Definition(log *slog.Logger, publicIP netip.Addr, stateDir string, key quaz
 	if err != nil {
 		return game.Definition{}, err
 	}
+	community.motd, err = loadMessageOfDay(os.Getenv("QUETZAL_TTL_MOTD_FILE"), log)
+	if err != nil {
+		return game.Definition{}, fmt.Errorf("MOTD: %w", err)
+	}
 	sessions.name = community.accountName
 	// The transport drains instructions on idle ticks even in direct mode;
 	// use that lifecycle hook to expire abandoned migration vacancies too.
-	options.GameProbeInstructions = sessions.migrationInstructions
+	options.GameProbeInstructions = func() []quazal.ProbeInstruction {
+		if err := community.settleExpiredRatings(); err != nil {
+			log.Error("rating settlement failed", "err", err)
+		}
+		return sessions.migrationInstructions()
+	}
 	options.GameProbe = sessions.probeTargets
 	options.GameConnectionURLs = sessions.connectionURLs
 	options.GameStatus = community.status
 	options.GameRegistered = func(peer prudp.Peer, pid uint32, url string) {
+		if err := community.ensureStatistics(pid); err != nil {
+			log.Error("initial statistics persistence failed", "pid", pid, "err", err)
+		}
 		community.status(peer, pid, "Online")
 		sessions.registered(peer, pid, url)
 	}

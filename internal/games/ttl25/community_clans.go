@@ -10,6 +10,7 @@ import (
 const maxClanMembers = 64 // replacement policy; retail server limit not recovered
 
 func (c *community) appendClan(b []byte, clan clanRecord, rank uint32) []byte {
+	rank = c.clanRank(clan.ID)
 	b = rankingU32(b, clan.ID)
 	b = rankingString(b, clan.Abbr)
 	b = rankingString(b, clan.Name)
@@ -41,7 +42,7 @@ func (c *community) appendClanInvitation(b []byte, inv clanInvitation) []byte {
 	b = rankingString(b, clan.Abbr)
 	b = rankingString(b, clan.Name)
 	b = rankingString(b, c.accountName(inv.From))
-	b = rankingU32(b, 0)
+	b = rankingU32(b, c.clanRank(clan.ID))
 	b = rankingU32(b, uint32(len(clan.Members)))
 	b = rankingString(b, c.accountName(inv.To))
 	return append(b, boolReply(inv.Read)...)

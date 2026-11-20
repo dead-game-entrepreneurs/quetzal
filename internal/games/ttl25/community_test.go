@@ -221,8 +221,11 @@ func TestStatisticsSnapshotScopesPersistenceAndReplay(t *testing.T) {
 		t.Fatal("statistics PID")
 	}
 	v := r.floats(102)
-	if !r.done() || len(v) != 102 || v[0] != 50 || v[15] != 1.5 || v[101] != 17 {
+	if !r.done() || len(v) != 102 || v[0] != 1600 || v[15] != 1 || v[101] != 17 {
 		t.Fatal("15+87 snapshot composition")
+	}
+	if c.state.Stats[f.a.PID].Values[0] != 50 || c.state.Stats[f.a.PID].Values[15] != 1.5 {
+		t.Fatal("derived browser fields mutated stored counters")
 	}
 	changed := append(rankingU32(nil, 87), floatBytes(append([]float32{2}, personal[1:]...))...)
 	if _, err := c.handle(f.pa, f.a.PID, quazal.Request{Protocol: 101, Method: 9, Args: changed}); err == nil {

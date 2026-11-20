@@ -45,7 +45,7 @@ These results apply to 25 to Life:
 | Clans | ✅ tested in game; individual operations still need wider coverage |
 | Aggregate and personal round statistics | ✅ both players' reports stored |
 | Adaptive relay fallback | 🧪 implemented; blocked-direct field test pending |
-| Full-match reporting and original ranking/scoring formulas | 🧪 further validation needed |
+| FAQ-based skill ratings, top-ten rank fields and localized MOTD | 🧪 implemented and tested; stock-client display validation pending |
 
 Retail testing used two unmodified PCSX2 Sockets clients. Real consoles are a
 project target; physical-console testing remains open. No PNACH, modified disc
@@ -240,6 +240,7 @@ states if an old room ID remains cached.
 | `QUETZAL_RELAY_FIRST_PORT`, `QUETZAL_RELAY_LAST_PORT` | `30200`, `30327` | 25 to Life relay pool; use `30400`, `30527` alongside TDU |
 | `QUETZAL_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error` |
 | `QUETZAL_CAPTURE_DIR` | empty (disabled) | Optional private packet capture directory |
+| `QUETZAL_TTL_MOTD_FILE` | unset | Optional localized 25 to Life announcement JSON; reloads on each MOTD request |
 | `QUETZAL_STATE_DIR` | binary: `data/state`; Compose: `/data/state` | Persistent state directory |
 
 TDU-specific `QUETZAL_TDU_*` settings are [listed separately](docs/games/tdu/running.md#settings)
@@ -335,6 +336,15 @@ Game-specific behavior stays in its adapter; the two titles share verified
 PRUDP, Quazal authentication and account primitives with explicit title policy. Go tests use synthetic accounts and isolated
 fixtures. See [architecture](docs/architecture.md) and
 [research instructions](docs/research.md).
+
+### Research acknowledgments
+
+[michal-kapala/25tl-rdv](https://github.com/michal-kapala/25tl-rdv) supplied the
+research lead to the original 25 to Life statistics FAQ and useful protocol
+documentation for rankings and localized messages. Quetzal implements those
+published rules independently in Go; the reference project's license includes
+Commons Clause terms in addition to MIT. See [rankings and MOTD](docs/games/25tolife/rankings.md)
+for source attribution, rating/icon rules and announcement configuration.
 
 ### Game files
 

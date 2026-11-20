@@ -22,7 +22,7 @@ All **39 title methods** are implemented. Friends, blocks, invitations, clans,
 roles, notices, preferences, statistics and report receipts persist atomically
 in private `data/state/community.json`. Presence, room participants, invitations
 and URLs follow live connections. Text checking accepts nonblank, noncontrol
-text; MOTD currently returns an empty message. Account retrieval returns stored
+text; MOTD supports localized, reloadable announcements (see [configuration](rankings.md#message-of-the-day)). Account retrieval returns stored
 profile/contact data, or unset defaults for an account without a saved profile.
 Personal fields are never reconstructed from captures.
 
@@ -159,34 +159,35 @@ Historical overwritten values can be restored only from retained reports or
 backups that match the persisted receipt digests. A digest alone cannot recover
 its original counters. Rebuild each accepted receipt once; do not add recovered
 rounds on top of a snapshot that is already included in those receipts.
-The original derived-stat calculations and ranking formula are not recovered.
-The current local ranking policy sorts by the first gathering value, ties by
-PID, and sums that value for clan rating. Clan-kill summary remains unset until
-its mapping is verified. These are replacement policies, not a claim to match
-the historical service's scoring formula.
+Player skill rating is now stored separately from these counters, beginning at
+1600 and updated from the original statistics FAQ's MVP/Elo rules. Rank is
+provided in the stock reply's index 15, and rating in index 0 (also in the
+side-specific rating fields). Clan rating follows its own 1600-based skill
+score rather than a sum of member counters. See [rankings and MOTD](rankings.md)
+for the source, worked-example ambiguity, report lifecycle, native icon
+thresholds and attribution to the earlier 25tl-rdv research.
 
 ### Rank research and lobby icons
 
 The [publisher-hosted PS2 manual](https://support.na.square-enix.com/document/manual/982/25_to_Life_PS2.pdf#page=10)
-states that ranked matches report statistics for rankings and unranked matches
-can be used for practice. It does not document a scoring formula or badge
-thresholds. The [Insignia Xbox leaderboard](https://insignia.live/games/45530018)
-separates ordinal Rank from numeric Rating; that is evidence about its current
-Xbox service, not verification of the original PS2 algorithm.
+confirms ranked matches report statistics. The original
+[statistics FAQ](https://web.archive.org/web/20071223122600/http://stats.25tolife.com/faq/)
+additionally documents the 1600 initial rating, MVP/Elo calculation, top-ten
+number icons and five star tiers. This supersedes the earlier absence of a
+verified public description.
 
 The stock PS2 UI label is `User Rating (Rank)` at `0x00630518`. Native player
 state separately exposes `d_rank` and `d_rating`: reader `0x001ed1a0` returns
 the fields at offsets 4 and 8 of the rank structure, respectively. In the player
 object these are `+0x158` and `+0x15c`. Setters `0x001d3a50` and `0x001d39f0`
 update the corresponding replicated fields; `0x00128028` copies the local
-online interface's values into those fields during player setup.
+online interface's values into those fields during player setup. `0x00347be8`
+loads wire index 15 into the local rank field and index 0 into its rating.
+Both must be populated, including the login-time explicit-player stats query.
 
 `MAIN.HOG` contains ten `SCREENS/RANK_01.DBL` through `RANK_10.DBL` assets,
-also included in `UBER_ONLINE.DBL`. Their existence confirms stock rank-icon
-support, but the mapping from rank/rating to those ten assets is not yet
-recovered. A first-place browser entry alone does not verify that the correct
-replicated lobby value or icon selection was supplied. No badge mapping or
-historical rating formula is implemented on the basis of those filenames.
+also included in `UBER_ONLINE.DBL`. The FAQ identifies the top-ten-number rule;
+stock-client rendering after the server field correction still needs testing.
 
 ### Browser reply transport limit
 
