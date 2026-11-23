@@ -53,13 +53,14 @@ type diskStore struct {
 // Store owns shared accounts and transient issued-ticket state for both roles.
 // Use one Store instance per account file; two independent writers are unsupported.
 type Store struct {
-	mu       sync.Mutex
-	path     string
-	nextPID  uint32
-	accounts map[string]Account
-	reserved map[uint32]bool
-	tickets  map[quazalcrypto.Key]*issuedTicket
-	names    NamePolicy
+	mu                 sync.Mutex
+	path               string
+	nextPID            uint32
+	accounts           map[string]Account
+	reserved           map[uint32]bool
+	tickets            map[quazalcrypto.Key]*issuedTicket
+	credentialVersions map[uint32]uint64
+	names              NamePolicy
 }
 
 // NamePolicy is a title's account-name rule. The zero value is the original
@@ -102,7 +103,7 @@ func OpenStoreWithNames(path string, names NamePolicy) (*Store, error) {
 	if path == "" {
 		return nil, errors.New("quazal: account store path is required")
 	}
-	s := &Store{path: path, nextPID: 1000, accounts: make(map[string]Account), reserved: map[uint32]bool{0: true, GuestPID: true}, tickets: make(map[quazalcrypto.Key]*issuedTicket), names: names}
+	s := &Store{path: path, nextPID: 1000, accounts: make(map[string]Account), reserved: map[uint32]bool{0: true, GuestPID: true}, tickets: make(map[quazalcrypto.Key]*issuedTicket), credentialVersions: make(map[uint32]uint64), names: names}
 	info, err := os.Lstat(path)
 	if errors.Is(err, os.ErrNotExist) {
 		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {

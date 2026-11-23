@@ -15,6 +15,7 @@ import (
 
 	"github.com/princebyyourlogic/quetzal/internal/app"
 	"github.com/princebyyourlogic/quetzal/internal/game"
+	"github.com/princebyyourlogic/quetzal/internal/games/commandos"
 	"github.com/princebyyourlogic/quetzal/internal/games/tdu"
 	"github.com/princebyyourlogic/quetzal/internal/games/ttl25"
 	"github.com/princebyyourlogic/quetzal/internal/games/wcc"
@@ -98,8 +99,8 @@ func buildTenants(cfg app.Config, log *slog.Logger) (defs []game.Definition, cle
 	// Reject unknown adapters before creating any state.
 	seen := map[string]bool{}
 	for _, key := range keys {
-		if key != "25tolife" && key != "tdu" && key != "wcc" {
-			return nil, cleanup, fmt.Errorf("unknown game %q; available: 25tolife,tdu,wcc", key)
+		if key != "25tolife" && key != "tdu" && key != "wcc" && key != "commandos" {
+			return nil, cleanup, fmt.Errorf("unknown game %q; available: 25tolife,tdu,wcc,commandos", key)
 		}
 		if seen[key] {
 			return nil, cleanup, fmt.Errorf("duplicate game %q", key)
@@ -116,6 +117,12 @@ func buildTenants(cfg app.Config, log *slog.Logger) (defs []game.Definition, cle
 		tenantLog := log.With("tenant", key, "game", key)
 		var def game.Definition
 		switch key {
+		case "commandos":
+			config, loadErr := commandos.LoadConfig(cfg.Bind, cfg.PublicIP, dir)
+			if loadErr != nil {
+				return defs, cleanup, fmt.Errorf("tenant %s config: %w", key, loadErr)
+			}
+			def, err = commandos.Definition(tenantLog, config, principal)
 		case "25tolife":
 			relay, loadErr := ttl25.LoadRelayConfig(cfg.Bind, cfg.PublicIP)
 			if loadErr != nil {

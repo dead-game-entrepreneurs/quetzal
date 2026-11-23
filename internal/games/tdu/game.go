@@ -187,20 +187,10 @@ func Definition(log *slog.Logger, c Config, key quazalcrypto.Key) (game.Definiti
 					return ip[:], nil
 				},
 			}
-			authHandler, err := quazal.New(options)
-			if err != nil {
-				return nil, err
-			}
-			options.Role = quazal.Secure
-			secureHandler, err := quazal.New(options)
-			if err != nil {
-				return nil, err
-			}
-			auth, err := prudp.New(prudp.Options{Bind: sockets[0].LocalAddr().(*net.UDPAddr).AddrPort(), Conn: sockets[0], ChecksumSeed: 0xbe, Handler: authHandler, Log: log, Observe: observe})
-			if err != nil {
-				return nil, err
-			}
-			secure, err := prudp.New(prudp.Options{Bind: sockets[1].LocalAddr().(*net.UDPAddr).AddrPort(), Conn: sockets[1], ChecksumSeed: 0xbe, Handler: secureHandler, UserHandler: natprobe.Handle, UserChecksumSeed: 0, Log: log, Observe: observe})
+			endpoints, err := quazal.NewEndpoints(sockets[:2], options, [2]prudp.Options{
+				{ChecksumSeed: 0xbe, Log: log, Observe: observe},
+				{ChecksumSeed: 0xbe, UserHandler: natprobe.Handle, UserChecksumSeed: 0, Log: log, Observe: observe},
+			})
 			if err != nil {
 				return nil, err
 			}
@@ -216,6 +206,6 @@ func Definition(log *slog.Logger, c Config, key quazalcrypto.Key) (game.Definiti
 			if err != nil {
 				return nil, err
 			}
-			return []game.UDPService{auth, secure, native}, nil
+			return []game.UDPService{endpoints[0], endpoints[1], native}, nil
 		}}, nil
 }

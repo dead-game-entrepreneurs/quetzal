@@ -24,6 +24,9 @@ func testTenantsConfig(t *testing.T) app.Config {
 		"QUETZAL_TDU_DIRECTORY_PORT", "QUETZAL_TDU_RESOURCE_PORT",
 		"QUETZAL_TDU_SESSION_PORT", "QUETZAL_TDU_DENSITY_PORT", "QUETZAL_TDU_USERMAP_PORT",
 		"QUETZAL_TDU_ACTIVITY_CATALOG", "QUETZAL_TDU_NETCONFIG", "QUETZAL_TDU_PRIZE",
+		"QUETZAL_COMMANDOS_BIND", "QUETZAL_COMMANDOS_PUBLIC_IP", "QUETZAL_COMMANDOS_AUTH_PORT",
+		"QUETZAL_COMMANDOS_SECURE_PORT", "QUETZAL_COMMANDOS_PAYLOAD_MODE",
+		"QUETZAL_COMMANDOS_RELAY_MODE", "QUETZAL_COMMANDOS_RELAY_FIRST_PORT", "QUETZAL_COMMANDOS_RELAY_LAST_PORT",
 	} {
 		t.Setenv(key, "")
 	}
@@ -131,6 +134,7 @@ func TestDisabledAdaptersDoNotLoadTheirConfiguration(t *testing.T) {
 	cfg := testTenantsConfig(t)
 	cfg.Games = []string{"25tolife"}
 	t.Setenv("QUETZAL_TDU_AUTH_PORT", "invalid")
+	t.Setenv("QUETZAL_COMMANDOS_PAYLOAD_MODE", "invalid")
 	defs, cleanup, err := buildTenants(cfg, testLog())
 	if err != nil {
 		t.Fatal(err)
@@ -138,6 +142,84 @@ func TestDisabledAdaptersDoNotLoadTheirConfiguration(t *testing.T) {
 	defer cleanup()
 	if len(defs) != 1 {
 		t.Fatal("enabled wrong adapters")
+	}
+}
+
+func TestAllThreeAdaptersIsolateCommandosStateAndPorts(t *testing.T) {
+	cfg := testTenantsConfig(t)
+	cfg.Games = append(cfg.Games, "commandos")
+	defs, cleanup, err := buildTenants(cfg, testLog())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanup()
+	if len(defs) != 3 || defs[2].Key != "commandos" || len(defs[2].UDPPorts) != 2 || defs[2].UDPPorts[0] != 30060 || defs[2].UDPPorts[1] != 30061 {
+		t.Fatalf("Commandos definition %+v", defs)
+	}
+	seenKeys := map[string]bool{}
+	for _, name := range cfg.Games {
+		dir := tenantStateDir(cfg.StateDir, name)
+		key, err := os.ReadFile(filepath.Join(dir, "principal.key"))
+		if err != nil || seenKeys[string(key)] {
+			t.Fatal("tenant keys not isolated", err)
+		}
+		seenKeys[string(key)] = true
+		store, err := quazal.OpenStore(filepath.Join(dir, "accounts.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := store.Lookup("same_name"); ok {
+			t.Fatal("account leaked across tenants")
+		}
+		if _, err = store.Create("same_name", quazalcrypto.InitialKey([]byte(name+" synthetic password"))); err != nil {
+			t.Fatal(err)
+		}
+		if lock, _, err := app.OpenState(dir); err == nil {
+			lock.Close()
+			t.Fatal("tenant lock missing")
+		}
+	}
+	cleanup()
+	for _, name := range cfg.Games {
+		lock, _, err := app.OpenState(tenantStateDir(cfg.StateDir, name))
+		if err != nil {
+			t.Fatal("tenant lock not released", err)
+		}
+		lock.Close()
+	}
+}
+
+func TestCommandosPortConflictReleasesAllStateLocks(t *testing.T) {
+	cfg := testTenantsConfig(t)
+	cfg.Games = append(cfg.Games, "commandos")
+	t.Setenv("QUETZAL_COMMANDOS_AUTH_PORT", "30120")
+	if _, _, err := buildTenants(cfg, testLog()); err == nil {
+		t.Fatal("Commandos overlapped TTL listener")
+	}
+	for _, name := range cfg.Games {
+		lock, _, err := app.OpenState(tenantStateDir(cfg.StateDir, name))
+		if err != nil {
+			t.Fatal("failed init kept lock", err)
+		}
+		lock.Close()
+	}
+}
+
+func TestCommandosRelayPoolCannotOverlapAnotherTenant(t *testing.T) {
+	cfg := testTenantsConfig(t)
+	cfg.Games = append(cfg.Games, "commandos")
+	t.Setenv("QUETZAL_RELAY_MODE", "adaptive")
+	t.Setenv("QUETZAL_RELAY_FIRST_PORT", "30600")
+	t.Setenv("QUETZAL_RELAY_LAST_PORT", "30727")
+	if _, _, err := buildTenants(cfg, testLog()); err == nil {
+		t.Fatal("shared relay pools overlapped")
+	}
+	for _, name := range cfg.Games {
+		lock, _, err := app.OpenState(tenantStateDir(cfg.StateDir, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		lock.Close()
 	}
 }
 func TestUnknownGameFailsBeforeCreatingState(t *testing.T) {

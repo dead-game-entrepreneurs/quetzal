@@ -59,6 +59,9 @@ type Options struct {
 	// OpaquePayload captures application data without assuming TDU's transforms.
 	// The observing handler must not treat these bytes as authenticated RPC.
 	OpaquePayload bool
+	// RawPayload carries application bytes without a compression selector or
+	// transport cipher. Ticket proof is still required by the Quazal handler.
+	RawPayload bool
 	// PlainPayload uses the observed 25 to Life compression wrapper without
 	// TDU's additional RC4 transport layer. Ticket crypto is separate.
 	PlainPayload bool

@@ -39,6 +39,11 @@ type Options struct {
 	Now                 func() time.Time
 	TicketTTL           time.Duration
 	ValidateAccountData func(public, private AnyData) error
+	// Signup selects the shipped account-creation principal and request policy.
+	// Nil preserves the existing SDK guest identity and parameter 0x20.
+	Signup *SignupPolicy
+	// EnablePasswordChange opts into AccountManagement 25/4 (String -> bool).
+	EnablePasswordChange bool
 	// RegisteredURLScheme selects the client's returned StationURL scheme.
 	// Empty defaults to prudp; prudps is available for titles that require it.
 	RegisteredURLScheme string
@@ -63,6 +68,13 @@ type Options struct {
 	// probe instructions, only to live, ticket-proven, registered named peers.
 	// Replies are not correlated and are ignored like other unsolicited replies.
 	GameServerCalls func() []ServerCall
+}
+
+// SignupPolicy is title configuration, never an ordinary player account.
+// The bootstrap principal remains limited to registered guest operations.
+type SignupPolicy struct {
+	Name, Password string
+	Parameter      uint32
 }
 
 type peerID struct {
@@ -92,13 +104,15 @@ type peerState struct {
 	order                    []callID
 	stationURL               string
 	probes                   map[uint32]time.Time
+	credentialVersion        uint64
 }
 type issuedTicket struct {
-	pid, destination uint32
-	guest            bool
-	digest           [32]byte
-	expires          time.Time
-	nonces           map[uint32]peerID
+	pid, destination  uint32
+	guest             bool
+	digest            [32]byte
+	expires           time.Time
+	nonces            map[uint32]peerID
+	credentialVersion uint64
 }
 
 // Service implements the authentication or secure-RDV role without binding sockets.
@@ -115,6 +129,24 @@ type Service struct {
 var _ prudp.Handler = (*Service)(nil)
 
 func New(options Options) (*Service, error) {
+	policy := SignupPolicy{Name: guestName, Password: guestPassword, Parameter: 0x20}
+	if options.Signup != nil {
+		policy = *options.Signup
+	}
+	if len(policy.Name) < 3 || len(policy.Name) > 128 || len(policy.Password) == 0 || len(policy.Password) > 128 {
+		return nil, errors.New("quazal: invalid signup principal")
+	}
+	for _, b := range []byte(policy.Name) {
+		if b < 0x21 || b > 0x7e {
+			return nil, errors.New("quazal: invalid signup principal name")
+		}
+	}
+	if options.Store != nil {
+		if _, exists := options.Store.Lookup(policy.Name); exists {
+			return nil, errors.New("quazal: signup principal conflicts with a player")
+		}
+	}
+	options.Signup = &policy
 	if options.Role != Auth && options.Role != Secure {
 		return nil, errors.New("quazal: invalid role")
 	}
@@ -152,7 +184,7 @@ func New(options Options) (*Service, error) {
 	if options.TicketTTL < 0 || options.TicketTTL > 24*time.Hour {
 		return nil, errors.New("quazal: ticket lifetime must be positive and at most 24 hours")
 	}
-	return &Service{options: options, peers: make(map[peerID]*peerState), guestKey: quazalcrypto.PasswordKey([]byte(guestPassword), GuestPID)}, nil
+	return &Service{options: options, peers: make(map[peerID]*peerState), guestKey: quazalcrypto.PasswordKey([]byte(policy.Password), GuestPID)}, nil
 }
 
 func (s *Service) Connect(_ context.Context, peer prudp.Peer, payload []byte) (prudp.ConnectResult, error) {
@@ -161,6 +193,9 @@ func (s *Service) Connect(_ context.Context, peer prudp.Peer, payload []byte) (p
 	key := peerKey(peer)
 	digest := sha256.Sum256(payload)
 	if previous := s.peers[key]; previous != nil {
+		if previous.proof && !s.currentCredentials(previous) {
+			return prudp.ConnectResult{}, errors.New("quazal: credentials changed")
+		}
 		if previous.handshake != digest {
 			return prudp.ConnectResult{}, errors.New("quazal: conflicting repeated CONNECT")
 		}
@@ -188,7 +223,7 @@ func (s *Service) Connect(_ context.Context, peer prudp.Peer, payload []byte) (p
 		now := s.options.Now()
 		s.purgeTicketsLocked(now)
 		issued := store.tickets[ticket.SessionKey]
-		if issued == nil || issued.pid != ticket.PrincipalID || issued.destination != s.options.ServerPID || issued.digest != sha256.Sum256(request.Ticket) {
+		if issued == nil || issued.pid != ticket.PrincipalID || issued.destination != s.options.ServerPID || issued.digest != sha256.Sum256(request.Ticket) || issued.credentialVersion != store.credentialVersions[issued.pid] {
 			store.mu.Unlock()
 			return prudp.ConnectResult{}, errors.New("quazal: ticket was not issued by this runtime")
 		}
@@ -204,6 +239,7 @@ func (s *Service) Connect(_ context.Context, peer prudp.Peer, payload []byte) (p
 		state.pid = ticket.PrincipalID
 		state.guest = issued.guest
 		state.proof = true
+		state.credentialVersion = issued.credentialVersion
 		store.mu.Unlock()
 		state.connectReply = quazalcrypto.ConnectReply(challenge.Nonce)
 	}
@@ -224,7 +260,7 @@ func (s *Service) disconnectLocked(peer prudp.Peer, reason string) {
 		s.options.Log.Info("quazal connection closed", "role", s.options.Role, "peer", peer.ID,
 			"remote", peer.Addr, "local_port", peer.LocalPort, "pid", state.pid, "cid", state.connectionID,
 			"registered", state.registered, "reason", reason)
-		if state.proof && !state.guest && s.options.GameDisconnect != nil {
+		if state.proof && state.registered && !state.guest && s.options.GameDisconnect != nil {
 			s.options.GameDisconnect(peer, state.pid)
 		}
 	}
@@ -251,6 +287,9 @@ func (s *Service) Handle(_ context.Context, peer prudp.Peer, wire []byte) ([][]b
 	state := s.peers[peerKey(peer)]
 	if state == nil {
 		return nil, errors.New("quazal: RPC before CONNECT")
+	}
+	if state.proof && !s.currentCredentials(state) {
+		return [][]byte{ErrorReply(request, GenericFailure)}, nil
 	}
 	id := callID{request.Protocol, request.CallID}
 	digest := sha256.Sum256(wire)
@@ -304,6 +343,8 @@ func (s *Service) dispatch(peer prudp.Peer, state *peerState, request Request) (
 		return s.connectionURLs(peer, state, request.Args)
 	case s.options.Role == Secure && request.Protocol == 25 && request.Method == 1:
 		return s.signup(state, request.Args)
+	case s.options.Role == Secure && request.Protocol == 25 && request.Method == 4 && s.options.EnablePasswordChange:
+		return s.changePassword(state, request.Args)
 	case s.options.Role == Secure && request.Protocol == 25 && request.Method == 12:
 		return s.updateContact(state, request.Args)
 	case s.options.Role == Secure && request.Protocol == 25 && request.Method == 13:
@@ -332,16 +373,16 @@ func (s *Service) secureURL() string {
 
 func (s *Service) login(state *peerState, args []byte) ([]byte, error) {
 	r := reader{data: args}
-	name := r.str(15)
+	name := r.str(max(15, len(s.options.Signup.Name)))
 	if !r.done() {
 		return nil, ErrRMC
 	}
-	canonical, err := s.options.Store.canonicalName(name)
-	if err != nil {
+	guest := strings.EqualFold(name, s.options.Signup.Name)
+	_, err := s.options.Store.canonicalName(name)
+	if !guest && err != nil {
 		return nil, ErrAccountName
 	}
 	pid := GuestPID
-	guest := canonical == guestName
 	key := s.guestKey
 	if !guest {
 		account, ok := s.options.Store.Lookup(name)
@@ -385,10 +426,11 @@ func (s *Service) issueTicket(state *peerState, args []byte) ([]byte, error) {
 	if !r.done() || state.pid == 0 || source != state.pid || destination != s.options.ServerPID {
 		return nil, errors.New("ticket request is not bound to the selected account and service")
 	}
+	store := s.options.Store
+	store.mu.Lock()
+	defer store.mu.Unlock()
 	clientKey := s.guestKey
 	if !state.guest {
-		store := s.options.Store
-		store.mu.Lock()
 		found := false
 		for _, account := range store.accounts {
 			if account.PID == state.pid {
@@ -397,14 +439,10 @@ func (s *Service) issueTicket(state *peerState, args []byte) ([]byte, error) {
 				break
 			}
 		}
-		store.mu.Unlock()
 		if !found {
 			return nil, errors.New("account unavailable")
 		}
 	}
-	store := s.options.Store
-	store.mu.Lock()
-	defer store.mu.Unlock()
 	s.purgeTicketsLocked(s.options.Now())
 	if len(store.tickets) >= 65536 {
 		return nil, errors.New("ticket capacity reached")
@@ -431,7 +469,7 @@ func (s *Service) issueTicket(state *peerState, args []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	store.tickets[sessionKey] = &issuedTicket{pid: source, destination: destination, guest: state.guest, digest: sha256.Sum256(envelope.Ticket), expires: s.options.Now().Add(s.options.TicketTTL), nonces: make(map[uint32]peerID)}
+	store.tickets[sessionKey] = &issuedTicket{pid: source, destination: destination, guest: state.guest, digest: sha256.Sum256(envelope.Ticket), expires: s.options.Now().Add(s.options.TicketTTL), nonces: make(map[uint32]peerID), credentialVersion: store.credentialVersions[source]}
 	w := writer{}
 	w.u32(Success)
 	w.buffer(sealed)
@@ -511,7 +549,7 @@ func (s *Service) signup(state *peerState, args []byte) ([]byte, error) {
 	text := r.str(32)
 	parameter := r.u32()
 	contact := r.str(255)
-	if !r.done() || parameter != 0x20 || len(text) != 32 {
+	if !r.done() || parameter != s.options.Signup.Parameter || len(text) != 32 || strings.EqualFold(name, s.options.Signup.Name) {
 		return nil, errors.New("unsupported signup shape")
 	}
 	raw, err := hex.DecodeString(text)

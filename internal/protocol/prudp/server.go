@@ -66,6 +66,9 @@ type connection struct {
 }
 
 func New(opts Options) (*Server, error) {
+	if opts.RawPayload && (opts.OpaquePayload || opts.PlainPayload) || opts.OpaquePayload && opts.PlainPayload {
+		return nil, errors.New("PRUDP payload modes are mutually exclusive")
+	}
 	if !opts.Bind.IsValid() || !opts.Bind.Addr().Is4() || opts.Handler == nil {
 		return nil, errors.New("PRUDP requires an IPv4 bind address and handler")
 	}
@@ -651,7 +654,7 @@ func (s *Server) observe(direction string, remote netip.AddrPort, wire []byte) e
 	return nil
 }
 func (s *Server) decodePayload(wire []byte) ([]byte, error) {
-	if s.opts.OpaquePayload {
+	if s.opts.OpaquePayload || s.opts.RawPayload {
 		if len(wire) > s.opts.MaxMessageSize {
 			return nil, ErrPacket
 		}
@@ -663,7 +666,7 @@ func (s *Server) decodePayload(wire []byte) ([]byte, error) {
 	return decodePayload(wire, s.opts.MaxMessageSize)
 }
 func (s *Server) encodePayload(plain []byte) []byte {
-	if s.opts.OpaquePayload {
+	if s.opts.OpaquePayload || s.opts.RawPayload {
 		return bytes.Clone(plain)
 	}
 	if s.opts.PlainPayload {

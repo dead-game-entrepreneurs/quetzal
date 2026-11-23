@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/princebyyourlogic/quetzal/internal/protocol/prudp"
+	"github.com/princebyyourlogic/quetzal/internal/protocol/quazal"
 )
 
 // Admit only currently published room endpoints. Private rooms require an
@@ -145,19 +146,7 @@ func (s *sessionRegistry) participantURLsFor(caller sessionOwner, gid uint32, ro
 // RVCID identifies the native NAT probe record. Secure registration assigns
 // CID; the retail host adds the same value when publishing its native URL.
 func nativeStationURL(url string) string {
-	var cid string
-	for _, part := range strings.Split(url, ";") {
-		if strings.HasPrefix(part, "RVCID=") {
-			return url
-		}
-		if strings.HasPrefix(part, "CID=") {
-			cid = strings.TrimPrefix(part, "CID=")
-		}
-	}
-	if n, err := strconv.ParseUint(cid, 10, 32); err == nil && n != 0 {
-		return url + ";RVCID=" + cid
-	}
-	return url
+	return quazal.WithRVCID(url)
 }
 
 func (s *sessionRegistry) connectionURLs(peer prudp.Peer, pid, cid, targetPID uint32) ([]string, error) {

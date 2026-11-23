@@ -1,8 +1,10 @@
 # Quetzal architecture
 
 Quetzal replaces Quazal online services for unmodified retail clients. The
-retail-tested adapter targets 25 to Life on PS2; an experimental TDU PS2 adapter
-shares the runtime. Real-console compatibility is a design requirement; client patches and emulator-only changes are outside the project.
+retail-tested adapter targets 25 to Life on PS2; experimental TDU, World
+Championship Cards and Commandos Strike Force PS2 adapters share the runtime.
+Real-console compatibility is a design requirement; client patches and
+emulator-only changes are outside the project.
 The layout follows Angelware while keeping Quazal framing, service numbers,
 cryptography and traversal independent from DemonWare.
 
@@ -15,10 +17,12 @@ cryptography and traversal independent from DemonWare.
 | `internal/game` | Tenant definitions, grouped/per-socket service factories, HTTP mounts and lazy UDP reservations |
 | `internal/protocol/prudp` | Framing, checksums, connection cookies, reliability, retries, reassembly and raw/LZO payloads |
 | `internal/protocol/quazal` | RMC, authentication, service tickets, secure registration and account persistence |
+| `internal/protocol/quazal/peerrelay` | Shared native pair relay, endpoint proofs, adaptive activation and lifecycle |
 | `internal/quazalcrypto` | Retail key derivation and authenticated ticket containers |
 | `internal/games/ttl25` | Eidos records, matchmaking, social operations, statistics and native relay policy |
 | `internal/games/tdu` | TDU tenant composition, native transport, sessions/presence, peer admission and title data |
 | `internal/games/wcc` | World Championship Cards gatherings, host migration and health checks |
+| `internal/games/commandos` | Commandos signup policy, gatherings, regex discovery and peer-introduction admission |
 | `internal/state` | Private keys, state files and exclusive tenant locks |
 | `internal/capture` | Optional bounded packet recording |
 
@@ -31,7 +35,8 @@ gameplay protocols interchangeable.
 
 ## Runtime ownership
 
-`QUETZAL_GAMES` selects `25tolife`, `tdu`, or both; the default stays `25tolife`.
+`QUETZAL_GAMES` selects any combination of `25tolife`, `tdu`, `wcc` and `commandos`;
+the default stays `25tolife`.
 Unknown and duplicate keys fail before tenant state is created. Only enabled
 adapters load their settings, stores and keys. Each tenant owns a separate state
 lock and principal key.
@@ -74,7 +79,8 @@ executed against a database. Unknown methods fail explicitly.
 
 25 to Life keeps its existing versioned JSON files directly under
 `QUETZAL_STATE_DIR` (`data/state/` by default). TDU uses
-`QUETZAL_STATE_DIR/tenants/tdu/`, even when it is the only enabled game. Each
+`QUETZAL_STATE_DIR/tenants/tdu/`, and Commandos uses `tenants/commandos/`, even
+when either is the only enabled game. Each
 location has its own `principal.key`, accounts and lock; TDU additionally persists
 `p2p.key` for its peer-wrapper resource and atomic `title-data.json` for reported
 statistics and challenge files. Enabling TDU does not move or merge
@@ -179,6 +185,22 @@ retail online entry or a completed race. See the
 [title services](games/tdu/title-services.md).
 
 ## Diagnostics and validation
+
+Commandos and TDU compose shared auth/secure endpoint pairs. SDK wire primitives,
+the gathering base reader and StationURL parsing live in `protocol/quazal`;
+title body codecs and room policy stay in adapters. Commandos supplies a separate
+bootstrap name/password and signup parameter, and opts into shared password
+changes. Successful changes persist atomically and revoke earlier tickets and
+registered proofs before further RPCs, including cached replies. TTL/TDU retain
+their default signup identity, parameter and password-change policy.
+
+Commandos defaults to the plain PRUDP compression wrapper, matching the stock US
+bootstrap-login packet captured on 2026-11-23. `raw` and `rc4` remain research
+overrides. There is no payload auto-detection or fallback. Ticket proof remains
+mandatory in each mode. Two stock LAN clients completed account startup and
+match entry, including blocked-direct relay fallback and a same-IP relay join.
+Full rounds and Internet NAT coverage remain open; see the
+[run guide](games/commandos/running.md).
 
 JSON logs contain operational metadata. Packet-by-packet metadata uses debug
 logging; raw backend recording is disabled unless a capture directory is set.

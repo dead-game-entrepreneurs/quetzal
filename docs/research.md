@@ -32,7 +32,8 @@ calls, menu linkage, configuration commands and disc-module imports. The
 and the limits of using this updater to replace the compiled MOTD menu code.
 
 The exporter accepts addresses, `code:0xADDRESS`, `refs:TEXT`,
-`addrrefs:0xADDRESS`, `callers:0xADDRESS`, and `name:SUBSTRING`. Output includes
+`addrrefs:0xADDRESS`, `callers:0xADDRESS`, `name:SUBSTRING`,
+`range:0xSTART:0xEND` (exclusive end), and `asm:0xADDRESS`. Output includes
 the executable hash, language, references and direct calls. `code:` discovers
 an unanalyzed function in the temporary read-only session. References and
 instructions must be checked alongside approximate decompiler types.
@@ -41,6 +42,18 @@ The [build notes](games/25tolife/analysis.md) record executable provenance and
 confirmed behavior. Add wire layouts only after checking request writers,
 reply dispatchers and identity/authority rules. Use synthetic fixtures for
 regressions, never real credentials, account records or full personal captures.
+
+## Commandos Strike Force initial investigation
+
+The [online service map](games/commandos/online-map.md) covers login, account
+management, gathering codecs/search, peer services, social/statistics scope and
+the reuse plan. The [build notes](games/commandos/analysis.md) retain hashes and
+overlay provenance. Use `tools/extract_commandos.sh`, `tools/ghidra.sh
+import-commandos`, and `decompile-commandos`. The private combined project is
+`ghidra/commandos-online.gpr`; exports remain in `work/commandos/`. The experimental
+adapter and retail-validation gaps are in the [run guide](games/commandos/running.md).
+`tools/verify_commandos_gathering.py` checks synthetic
+records through the native field codecs and verifies the retail checksum.
 
 ## TDU evidence workspace
 

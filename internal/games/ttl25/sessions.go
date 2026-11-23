@@ -84,13 +84,15 @@ func readNewSession(args []byte) (quazal.AnyData, map[string]string, error) {
 	}
 	r = rankingReader{b: data.Payload}
 	body := r.u32()
-	id, owner, host := r.u32(), r.u32(), r.u32()
-	limits := r.u32()
-	min, max := limits&0xffff, limits>>16
-	for range 4 {
-		r.u32()
-	} // participation policy, argument, flags, state
-	description := r.str()
+	baseReader := quazal.NewReader(r.b)
+	base := baseReader.Gathering()
+	r.take(len(r.b) - baseReader.Remaining())
+	if baseReader.Err() != nil || len(base.Description) > 255 {
+		r.err = quazal.ErrRMC
+	}
+	id, owner, host := base.ID, base.OwnerPID, base.HostPID
+	min, max := uint32(base.MinParticipants), uint32(base.MaxParticipants)
+	description := base.Description
 	fields := map[string]string{}
 	if data.Type == "TTLSession" {
 		fields["levelName"] = r.str()

@@ -4,41 +4,16 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"net/netip"
 	"sort"
 	"strconv"
-	"strings"
 
 	"github.com/princebyyourlogic/quetzal/internal/protocol/prudp"
 	"github.com/princebyyourlogic/quetzal/internal/protocol/quazal"
 )
 
 func validSessionURL(url string, pid uint32) bool {
-	if len(url) > 512 || (!strings.HasPrefix(url, "prudps:/") && !strings.HasPrefix(url, "prudp:/")) {
-		return false
-	}
-	_, body, _ := strings.Cut(url, ":/")
-	values := map[string]string{}
-	for _, part := range strings.Split(body, ";") {
-		k, v, ok := strings.Cut(part, "=")
-		if !ok || k == "" || v == "" {
-			return false
-		}
-		if _, ok := values[k]; ok {
-			return false
-		}
-		values[k] = v
-	}
-	address, err := netip.ParseAddr(values["address"])
-	if err != nil || !address.Is4() || address.IsUnspecified() || address.IsMulticast() {
-		return false
-	}
-	port, err := strconv.ParseUint(values["port"], 10, 16)
-	if err != nil || port == 0 {
-		return false
-	}
-	id, err := strconv.ParseUint(values["PID"], 10, 32)
-	return err == nil && uint32(id) == pid
+	endpoint, err := quazal.ParseStationURL(url)
+	return err == nil && endpoint.PID == pid
 }
 func uniqueMembers(room sessionRecord) []uint32 {
 	ids := map[uint32]bool{}

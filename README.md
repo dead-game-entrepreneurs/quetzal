@@ -7,7 +7,8 @@
 <p align="center">
   A replacement for <b>Quazal Rendez-Vous / NetZ</b> online services,<br>
   with a tested <b>25 to Life PS2</b> adapter and experimental<br>
-  <b>Test Drive Unlimited</b> and <b>World Championship Cards</b> PS2 backends,<br>
+  <b>Test Drive Unlimited</b>, <b>World Championship Cards</b><br>
+  and <b>Commandos Strike Force</b> PS2 backends,<br>
   using stock client protocols.
 </p>
 
@@ -23,7 +24,8 @@
   <a href="#running-the-server">Running the server</a> ·
   <a href="docs/games/25tolife/analysis.md">25 to Life notes</a> ·
   <a href="docs/games/tdu/online-map.md">TDU notes</a> ·
-  <a href="docs/games/wcc/analysis.md">WCC notes</a>
+  <a href="docs/games/wcc/analysis.md">WCC notes</a> ·
+  <a href="docs/games/commandos/running.md">Commandos guide</a>
 </p>
 
 ---
@@ -96,6 +98,28 @@ Up to three unmodified PCSX2 clients on one LAN have completed games:
 
 See the [WCC notes](docs/games/wcc/analysis.md).
 
+**Commandos Strike Force** (US PS2, `SLUS-211.03`) is an experimental adapter.
+Two unmodified PCSX2 clients on separate LAN PCs have verified these flows:
+
+| Feature | Status |
+| --- | --- |
+| Account creation and login | ✅ tested in game |
+| Hosting, browsing, filtered search and joining | ✅ tested in game |
+| Map/mode updates, player counts, leave and Quick Match re-entry | ✅ tested in game |
+| Adaptive relay fallback | ✅ LAN join with direct traffic blocked |
+| Player host sharing the backend/relay IP | ✅ relay join tested in game |
+| Password changes | 🧪 implemented and tested; stock UI unverified |
+| Full-round gameplay, Internet NAT and physical consoles | 🧪 unverified |
+| Host migration, voice and private/password-room semantics | Not implemented or validated end to end |
+| Persistent stats, leaderboards, friends and clans | No active backend calls found in the inspected PS2 client |
+
+Commandos uses the shared native relay with a separate UDP **30600–30727** pool.
+Connections normally try direct first. When a player's gameplay IP matches the
+relay IP, the adapter offers only the relay endpoint to avoid the game's browser
+merging probes for different ports. See the
+[Commandos run guide](docs/games/commandos/running.md) and
+[service map](docs/games/commandos/online-map.md) for evidence and remaining coverage.
+
 All adapters can run in one process, with separate state, sockets and captures.
 Other Quazal titles still need their own adapters and verification.
 
@@ -140,11 +164,33 @@ The game requests `/TTL/final-version.txt` over **TCP 80**. Serve an empty HTTP
 Quetzal's HTTP listener. Quetzal's default HTTP port is 8082; DNS alone does not
 redirect port 80 to it. The tested setup used the empty-404 no-update path.
 
-For **TDU**, redirect `tdulive.quazal.net` to its reachable server IPv4 and keep
-DNAS separate. See the [TDU network setup](docs/games/tdu/running.md#network-setup-and-ports).
+For **Test Drive Unlimited**, point this name at its reachable server IPv4:
 
-For **World Championship Cards**, redirect `wcclive.quazal.net`; see
-[configs/wcc.dns.yaml](configs/wcc.dns.yaml). DNAS stays separate.
+```text
+tdulive.quazal.net
+```
+
+See [configs/tdu.dns.yaml](configs/tdu.dns.yaml) and the
+[TDU network setup](docs/games/tdu/running.md#network-setup-and-ports).
+
+For **World Championship Cards**, point this name at its reachable server IPv4:
+
+```text
+wcclive.quazal.net
+```
+
+See [configs/wcc.dns.yaml](configs/wcc.dns.yaml).
+
+For **Commandos Strike Force** (US PS2), point this name at its reachable server IPv4:
+
+```text
+cxliveSCEA.quazal.net
+```
+
+See [configs/commandos.dns.yaml](configs/commandos.dns.yaml) and the
+[Commandos network setup](docs/games/commandos/running.md#network-setup).
+All DNS examples use a documentation address; replace it with your server's
+address and preserve your separate DNAS routing.
 
 ## Running the server
 
@@ -179,6 +225,10 @@ QUETZAL_RELAY_FIRST_PORT=30400
 QUETZAL_RELAY_LAST_PORT=30527
 ```
 
+Use `commandos` or `wcc` for either game alone. For all four adapters, use
+`QUETZAL_GAMES=25tolife,tdu,wcc,commandos` with the same 25 to Life relay-pool
+adjustment. Commandos has its own relay pool and title-specific settings.
+
 The old relay default **30200–30327 overlaps TDU's 30200/30201 listeners**.
 Startup rejects overlaps with static or lazy-reserved UDP ports and never
 silently changes ranges. Unknown or duplicate game keys also fail startup.
@@ -206,6 +256,10 @@ TDU additionally requires these physical UDP listeners:
 | UDP 8124 | TDU native master assignment |
 | UDP 8122 | TDU encrypted native proxy and local services |
 
+Native TDU service ports 9000–9004 are logical destinations inside the tunnel,
+not listeners. They need no firewall rules. The
+[TDU guide](docs/games/tdu/running.md) lists overrides and current limits.
+
 World Championship Cards requires:
 
 | Port | Purpose |
@@ -213,14 +267,19 @@ World Championship Cards requires:
 | UDP 30280 | WCC authentication |
 | UDP 30281 | WCC ticket-authenticated services |
 
-Native service ports 9000–9004 are logical destinations inside the tunnel, not
-listeners. They need no firewall rules.
-The [TDU guide](docs/games/tdu/running.md) lists overrides and current limits.
+Commandos Strike Force requires:
+
+| Port | Purpose |
+| --- | --- |
+| UDP 30060 | Commandos authentication |
+| UDP 30061 | Commandos ticket-authenticated services |
+| UDP 30600–30727 | On-demand Commandos native relay endpoints |
 
 Compose uses host networking to preserve observed peer addresses. 25 to Life
 accounts, profiles, friends, clans and statistics keep their existing private
 files under `data/state/`; its transient rooms are removed on host departure or
-restart. TDU uses separate keys/accounts under `data/state/tenants/tdu/`.
+restart. Each other game uses separate keys/accounts under
+`data/state/tenants/{game}/` (`tdu`, `wcc` or `commandos`).
 Stop with `docker compose down`. The `data/` directory stays on disk.
 
 After restarting the backend or changing connection modes, leave online mode
@@ -231,20 +290,22 @@ states if an old room ID remains cached.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `QUETZAL_GAMES` | `25tolife` | Enabled adapters, comma-separated: `25tolife`, `tdu`, `wcc` |
+| `QUETZAL_GAMES` | `25tolife` | Enabled adapters, comma-separated: `25tolife`, `tdu`, `wcc`, `commandos` |
 | `QUETZAL_PUBLIC_IP` | bind address; set explicitly for hosting | Reachable server IPv4 |
 | `QUETZAL_BIND` | `127.0.0.1` (example uses `0.0.0.0`) | Local listener address |
 | `QUETZAL_HTTP_PORT` | `8082` | HTTP diagnostics and patch handler |
 | `QUETZAL_UID`, `QUETZAL_GID` | `1000` | Compose process UID and GID |
 | `QUETZAL_RELAY_MODE` | Compose: `adaptive`; binary: `direct` | 25 to Life connection policy |
-| `QUETZAL_RELAY_FIRST_PORT`, `QUETZAL_RELAY_LAST_PORT` | `30200`, `30327` | 25 to Life relay pool; use `30400`, `30527` alongside TDU |
+| `QUETZAL_RELAY_FIRST_PORT`, `QUETZAL_RELAY_LAST_PORT` | `30200`, `30327` | 25 to Life relay pool; use `30400`, `30527` alongside TDU or WCC |
 | `QUETZAL_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error` |
 | `QUETZAL_CAPTURE_DIR` | empty (disabled) | Optional private packet capture directory |
 | `QUETZAL_TTL_MOTD_FILE` | unset | Optional localized 25 to Life announcement JSON; reloads on each MOTD request |
 | `QUETZAL_STATE_DIR` | binary: `data/state`; Compose: `/data/state` | Persistent state directory |
 
-TDU-specific `QUETZAL_TDU_*` settings are [listed separately](docs/games/tdu/running.md#settings)
-and are read only when TDU is enabled. `/healthz` reports all enabled tenants.
+TDU-specific `QUETZAL_TDU_*` settings are [listed separately](docs/games/tdu/running.md#settings).
+Commandos-specific `QUETZAL_COMMANDOS_*` settings, including its default
+`adaptive` mode and UDP relay pool, are in the [Commandos guide](docs/games/commandos/running.md#settings).
+Each adapter reads its settings only when enabled. `/healthz` reports all enabled tenants.
 HTTP handlers are scoped under `/games/{key}/`; 25 to Life also keeps its original
 `/TTL/` patch routes and `/connectivity` diagnostics.
 
@@ -280,7 +341,7 @@ at debug level. Payloads and account secrets are not added to these log events.
 
 Docker rotates JSON logs at 10 MiB with three files. Optional packet captures
 rotate separately and contain private full payloads; see the privacy notes below.
-For multi-game captures, preserve both tenant subdirectories when upgrading an
+For multi-game captures, preserve all tenant subdirectories when upgrading an
 existing single-game capture setup. Operators should correlate a tester's exact
 time, build/region, menu action and error with server logs. Players can follow
 [TDU's testing/reporting steps](docs/games/tdu/testing.md). Physical-console,
@@ -295,7 +356,7 @@ also retain the contact and profile fields supplied by the client. Keep
 
 Raw capture is disabled by default. For protocol research, set
 `QUETZAL_CAPTURE_DIR=/data/captures` in Compose. With multiple games, separate
-recorders write to `/data/captures/25tolife/` and `/data/captures/tdu/`; a single
+recorders write to `/data/captures/{game}/` for each enabled adapter; a single
 game keeps the legacy path directly under `/data/captures/`. Captures include
 full backend payloads and can contain account secrets and profile information.
 Each recorder rotates at 16 MiB with three backups. Routine JSON logs contain
@@ -323,16 +384,18 @@ scripts/go build ./cmd/quetzal
 | `internal/game` | Game adapter contract |
 | `internal/protocol/prudp` | Framing, checksums, reliability, retries and raw/LZO payloads |
 | `internal/protocol/quazal` | RMC, authentication, tickets, registration and account storage |
+| `internal/protocol/quazal/peerrelay` | Shared native relay, endpoint proofs and pair lifecycle |
 | `internal/quazalcrypto` | Retail key derivation and ticket containers |
 | `internal/games/ttl25` | 25 to Life codecs, matchmaking, friends, clans, stats and native relay |
 | `internal/games/tdu` | TDU adapter, native transport, sessions/presence, peer admission and title-data services |
 | `internal/games/wcc` | World Championship Cards matchmaking, migration and health checks |
+| `internal/games/commandos` | Commandos account policy, gathering codec, discovery and peer/relay admission |
 | `internal/state` | Private keys and exclusive tenant state ownership |
 | `internal/capture` | Optional bounded private recording |
 | `tools/`, `ghidra/scripts/` | Local disc analysis helpers; not used by the server |
 
 The layout follows [Angelware](https://github.com/princebyyourlogic/angelware).
-Game-specific behavior stays in its adapter; the two titles share verified
+Game-specific behavior stays in its adapter; the titles share verified
 PRUDP, Quazal authentication and account primitives with explicit title policy. Go tests use synthetic accounts and isolated
 fixtures. See [architecture](docs/architecture.md) and
 [research instructions](docs/research.md).

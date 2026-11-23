@@ -201,7 +201,7 @@ func TestLastParticipantDisconnectRemovesPendingMigration(t *testing.T) {
 func TestMigrationPreservesSurvivorRelayAndRevokesDepartedRoutes(t *testing.T) {
 	f, gid := migrationFixture(t, 0)
 	s := f.c.sessions
-	r, _, bSocket, a, b := relayTestFixture(t)
+	r, _, bSocket, a, b := relayTestFixture(t, "relay")
 	s.relay = r
 	f.pa, f.pb = a.peer, b.peer
 	s.registered(f.pa, f.a.PID, a.url)
@@ -211,30 +211,33 @@ func TestMigrationPreservesSurvivorRelayAndRevokesDepartedRoutes(t *testing.T) {
 	dURL := relayStationURL("prudp:/stream=3;sid=1;PID="+fmt.Sprint(f.d.PID), f.pd.Addr, 13)
 	s.registered(f.pd, f.d.PID, dURL)
 	now := time.Unix(100, 0)
-	s.now, r.now = func() time.Time { return now }, func() time.Time { return now }
+	s.now = func() time.Time { return now }
 	// Existing survivor-to-survivor routes must remain usable when a third
 	// player, the original host, departs.
 	third := relayIdentity{ownerOf(f.pd, f.d.PID), f.pd, 13, dURL}
 	r.offer(gid, a, b, b.url)
-	r.offer(gid, b, third, third.url)
+	forward := r.offer(gid, b, third, third.url)
+	reverse := r.offer(gid, third, b, b.url)
 	room := s.rooms[gid]
 	room.members[third.owner] = ""
 	s.rooms[gid] = room
-	r.mu.Lock()
-	pair := r.pairs[relayPairKey{gid, b.owner, third.owner}]
-	// Native proof itself is covered by the existing relay handshake tests.
-	// Keep a proved survivor route and exercise its real UDP sockets here.
-	pair.active = true
-	pair.mapping[0] = relayMapping{proved: true, address: b.peer.Addr}
-	pair.mapping[1] = relayMapping{proved: true, address: third.peer.Addr}
-	virtualD := pair.sockets[1].LocalAddr().(*net.UDPAddr).AddrPort()
-	r.mu.Unlock()
+	virtualD := relayEndpoint(t, forward[0])
+	r.requestProbe(b.owner, forward[0])
+	proveRelay(t, bSocket, virtualD, b.cid)
+	proveRelay(t, dSocket, relayEndpoint(t, reverse[0]), third.cid)
+	deadline := time.Now().Add(time.Second)
+	for r.core.Snapshot().ProvedMappings != 2 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if state := r.core.Snapshot(); state.Active != 1 || state.ProvedMappings != 2 {
+		t.Fatal("survivor route was not proved", state)
+	}
 	s.disconnect(f.pa, f.a.PID)
-	if len(r.pairs) != 1 {
+	if r.core.Snapshot().Candidates != 1 {
 		t.Fatal("host exit removed a survivor route or retained the old host route")
 	}
 	migrationCall(t, s, f.pb, f.b.PID, 21, 27, rankingString(rankingU32(nil, gid), ""), true)
-	if len(r.pairs) != 1 {
+	if r.core.Snapshot().Candidates != 1 {
 		t.Fatal("host claim replaced an existing survivor route")
 	}
 	payload := []byte("synthetic native gameplay after host departure")
@@ -251,17 +254,11 @@ func TestMigrationPreservesSurvivorRelayAndRevokesDepartedRoutes(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantBool(t, bResult, true)
-	r.mu.Lock()
-	closing := pair.closing
-	r.mu.Unlock()
-	if closing.IsZero() {
+	if r.core.Snapshot().Draining != 1 {
 		t.Fatal("removed room retained an active route instead of draining")
 	}
-	r.mu.Lock()
-	now = now.Add(relayDrain)
-	r.mu.Unlock()
-	r.tick()
-	if len(r.pairs) != 0 {
-		t.Fatal("room removal leaked guest-to-guest relay candidates")
+	if _, _, issued := r.probeTarget(b.owner, forward[0]); issued {
+		t.Fatal("removed room still admitted new guest-to-guest relay probes")
 	}
+	// The shared engine separately tests drain expiry and socket release.
 }

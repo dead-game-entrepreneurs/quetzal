@@ -8,8 +8,8 @@ import (
 
 const MaxAccountData = 16 * 1024
 
-// AnyData retains the SDK type name and its complete length-prefixed Data record.
-// The game adapter owns the concrete fields; storage preserves the exact bytes.
+// AnyData retains the SDK type name and serialized concrete body. The adapter
+// owns any inner Data length and fields; storage preserves the exact bytes.
 type AnyData struct {
 	Type    string `json:"type"`
 	Payload []byte `json:"payload"`

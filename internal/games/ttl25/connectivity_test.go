@@ -14,7 +14,6 @@ import (
 func TestAdaptiveBrowseHasGroupedFallbackForEveryParticipant(t *testing.T) {
 	f := newCommunityFixture(t)
 	r, _, _, host, browser := relayTestFixture(t)
-	r.cfg.LastPort = r.cfg.FirstPort + 63
 	s := f.c.sessions
 	s.relay = r
 	f.pa, f.pb = host.peer, browser.peer
@@ -67,21 +66,18 @@ func TestAdaptiveBrowseHasGroupedFallbackForEveryParticipant(t *testing.T) {
 	if err != nil || len(targets) != 16 || len(r.drainInstructions()) != 0 {
 		t.Fatal("browse altered direct introduction or activated relay", err)
 	}
-	for _, p := range r.pairs {
-		if p.active {
-			t.Fatal("publishing browse candidates activated forwarding")
-		}
+	if r.core.Snapshot().Active != 0 {
+		t.Fatal("publishing browse candidates activated forwarding")
 	}
-	before := len(r.pairs)
-	if later, err := s.connectionURLs(f.pb, f.b.PID, 0, f.a.PID); err != nil || len(later) != 2 || len(r.pairs) != before {
+	before := r.core.Snapshot().Candidates
+	if later, err := s.connectionURLs(f.pb, f.b.PID, 0, f.a.PID); err != nil || len(later) != 2 || r.core.Snapshot().Candidates != before {
 		t.Fatal("join failed to reuse browse candidate", err)
 	}
 }
 
 func TestForcedRelayAdvertisesEarlyURLsAndKeepsNATIntroductionVirtual(t *testing.T) {
 	f := newCommunityFixture(t)
-	r, _, _, host, guest := relayTestFixture(t)
-	r.cfg.Mode = "relay"
+	r, _, _, host, guest := relayTestFixture(t, "relay")
 	s := f.c.sessions
 	s.relay = r
 	f.pa, f.pb = host.peer, guest.peer
@@ -107,7 +103,7 @@ func TestForcedRelayAdvertisesEarlyURLsAndKeepsNATIntroductionVirtual(t *testing
 		t.Fatal("early lookup leaked direct host address")
 	}
 	urls, err := s.connectionURLs(f.pb, f.b.PID, 0, f.a.PID)
-	if err != nil || len(urls) != 1 || urls[0] != virtual || len(r.pairs) != 1 {
+	if err != nil || len(urls) != 1 || urls[0] != virtual || r.core.Snapshot().Candidates != 1 {
 		t.Fatal("later lookup changed virtual address", err)
 	}
 	b, err = s.lobby(f.pb, f.b.PID, quazal.Request{Method: 28, Args: rankingU32(nil, gid)})
@@ -255,7 +251,7 @@ func TestRelayCandidatesRequireAccessibleLiveRoomAndPreserveHostIdentity(t *test
 	}
 	wantBool(t, b, true)
 	urls, err := s.connectionURLs(f.pb, f.b.PID, 0, f.a.PID)
-	if err != nil || len(urls) != 0 || len(r.pairs) != 0 {
+	if err != nil || len(urls) != 0 || r.core.Snapshot().Candidates != 0 {
 		t.Fatal("private uninvited relay access", err)
 	}
 	invite := rankingString(rankingU32(rankingU32(rankingU32(nil, gid), 1), f.b.PID), "")
@@ -272,7 +268,7 @@ func TestRelayCandidatesRequireAccessibleLiveRoomAndPreserveHostIdentity(t *test
 		t.Fatal("wrong selector returned relay")
 	}
 	s.disconnect(f.pa, f.a.PID)
-	if len(r.pairs) != 0 {
+	if r.core.Snapshot().Candidates != 0 {
 		t.Fatal("disconnected host retained virtual endpoints")
 	}
 	if urls, err = s.connectionURLs(f.pb, f.b.PID, 0, f.a.PID); err != nil || len(urls) != 0 {

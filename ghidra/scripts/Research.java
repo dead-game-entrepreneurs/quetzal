@@ -59,6 +59,24 @@ public class Research extends GhidraScript {
                     for (Function fn : currentProgram.getFunctionManager().getFunctions(true)) {
                         if (fn.getName(true).contains(arg.substring(5))) functions.add(fn);
                     }
+                } else if (arg.startsWith("range:")) {
+                    String[] bounds = arg.substring(6).split(":");
+                    if (bounds.length != 2) throw new IllegalArgumentException("Expected range:START:END");
+                    long start = Long.decode(bounds[0]);
+                    long end = Long.decode(bounds[1]);
+                    for (Function fn : currentProgram.getFunctionManager().getFunctions(true)) {
+                        long entry = fn.getEntryPoint().getOffset();
+                        if (entry >= start && entry < end && !fn.getEntryPoint().getAddressSpace().isOverlaySpace()) functions.add(fn);
+                    }
+                } else if (arg.startsWith("asm:")) {
+                    var address = toAddr(Long.decode(arg.substring(4)));
+                    Function fn = getFunctionContaining(address);
+                    if (fn != null) {
+                        functions.add(fn);
+                        for (var instruction : currentProgram.getListing().getInstructions(fn.getBody(), true)) {
+                            out.println("ASM " + instruction.getAddress() + " " + instruction);
+                        }
+                    }
                 } else {
                     Function fn = getFunctionContaining(toAddr(Long.decode(arg)));
                     if (fn != null) functions.add(fn);
@@ -72,6 +90,9 @@ public class Research extends GhidraScript {
                 for (Function fn : functions) {
                     monitor.checkCancelled();
                     out.println("\n==== " + fn.getEntryPoint() + " " + fn.getName(true));
+                    for (Reference ref : getReferencesTo(fn.getEntryPoint())) {
+                        out.println("CALLER " + ref.getFromAddress() + " " + getFunctionContaining(ref.getFromAddress()) + " " + ref.getReferenceType());
+                    }
                     for (Function callee : fn.getCalledFunctions(monitor)) {
                         out.println("CALL " + callee.getEntryPoint() + " " + callee.getName(true));
                     }
