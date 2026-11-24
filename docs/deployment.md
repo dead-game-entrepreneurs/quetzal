@@ -157,10 +157,19 @@ HTTP200 with the two-line no-update manifest in the
 [run guide](games/snowblind/running.md#dns-and-http), and that the existing
 25 to Life `/TTL/final-version.txt` still returns an empty HTTP404.
 Verify all four A records through the actual game resolver, then `/healthz`
-for all five tenants and `/games/snowblind/connectivity` for `adaptive` mode
-and the selected relay range. UDP handshake probes establish endpoint reachability;
+for all five tenants and `/games/snowblind/connectivity` for `adaptive` mode.
+Check the selected relay range in the running container's `QUETZAL_SNOWBLIND_RELAY_*` settings. UDP handshake probes establish endpoint reachability;
 retail Internet join/gameplay still needs a client test. Keep existing capture
 preferences; raw capture remains disabled by default for new installations.
+
+The 2026-11-24 RackNerd deployment retained the existing 25 to Life
+30400–30527 and Commandos 30800–30927 adaptive pools, adding Snowblind on
+31000–31127. Public resolver checks passed for all fourteen Quetzal names and
+the three preserved regional DNAS answers. Both games' patch HTTP responses,
+all five adapters' auth/secure SYN replies, and UDP reachability at both ends
+of the Snowblind relay pool passed. Production state was backed up while stopped;
+existing state-file checksums matched after startup. These deployment probes
+complement the LAN retail tests; Internet gameplay still needs client validation.
 
 ### Moving a standalone TDU research installation
 
