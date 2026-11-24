@@ -92,8 +92,11 @@ func TestRankingRejectsMalformedAndDoesNotPublishFailedWrite(t *testing.T) {
 			t.Fatalf("accepted truncation %d", n)
 		}
 	}
-	if _, err := s.handle(1000, create); err == nil || s.record != nil {
-		t.Fatal("failed write published record")
+	if _, err := s.handle(1000, create); err == nil {
+		t.Fatal("failed write reported success")
+	}
+	if b, err := s.handle(1000, rankingLookup(0, 25)); err != nil || !bytes.Equal(b, []byte{0, 0, 0, 0}) {
+		t.Fatal("failed write published record", err)
 	}
 	if _, err := s.handle(1000, rankingLookup(0, 101)); err == nil {
 		t.Fatal("unbounded result count")

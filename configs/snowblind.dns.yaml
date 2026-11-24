@@ -1,0 +1,10 @@
+# Experimental US PS2 Project: Snowblind adapter.
+# Replace the documentation address; preserve existing DNAS rules.
+- service: quetzal-snowblind
+  names:
+    - sbusps2.quazal.net
+    - sb1.patch.eidos.com
+    - sb2.patch.eidos.com
+    - sb3.patch.eidos.com
+  answer: "203.0.113.10"
+# Patch hosts use TCP 80: proxy /psb1a/ to Quetzal's HTTP listener.

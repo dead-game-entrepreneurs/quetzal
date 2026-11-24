@@ -113,6 +113,55 @@ optional protocol metadata, not an ISO/asset dependency; see
 [the catalog notes](games/tdu/presence.md). FreeRide and Drive-In discovery do not
 require the catalog. Keep captures/backups outside Git.
 
+### Adding Snowblind to an existing host
+
+Enable `snowblind` alongside the existing game selection. Preserve every live
+tenant's keys, accounts and state; do not copy local emulator-test state to the
+host. Snowblind creates its own `tenants/snowblind/` containing accounts,
+principal key, Ranking metadata, friends, clans and receipt-based statistics.
+Keep the matching pre-upgrade image, private environment/configuration and a
+stopped-state backup before replacing the service.
+
+Its defaults are UDP 13015/13016 and adaptive relay UDP 30800–30927. Check
+other hosted services as well as Quetzal tenants before choosing a pool. For
+example, a host with Commandos already using 30800–30927 can retain that setting
+and assign Snowblind a separate pool:
+
+```dotenv
+QUETZAL_GAMES=25tolife,tdu,wcc,commandos,snowblind
+QUETZAL_SNOWBLIND_PAYLOAD_MODE=plain
+QUETZAL_SNOWBLIND_RELAY_MODE=adaptive
+QUETZAL_SNOWBLIND_RELAY_FIRST_PORT=31000
+QUETZAL_SNOWBLIND_RELAY_LAST_PORT=31127
+```
+
+Allow UDP 13015–13016 and the chosen relay pool through the host/provider
+firewall. Relay sockets bind on demand. Add all four names from
+[the Snowblind DNS example](../configs/snowblind.dns.yaml) to the persistent
+resolver configuration; retain the other games and separate DNAS answers.
+Route TCP80 requests for the three patch hosts to the Quetzal manifest:
+
+```nginx
+server {
+    listen 80;
+    server_name sb1.patch.eidos.com sb2.patch.eidos.com sb3.patch.eidos.com;
+    location /psb1a/ {
+        proxy_pass http://127.0.0.1:8082;
+    }
+    location / { return 404; }
+}
+```
+
+Test nginx configuration before reloading. Check `/psb1a/scea.txt` returns
+HTTP200 with the two-line no-update manifest in the
+[run guide](games/snowblind/running.md#dns-and-http), and that the existing
+25 to Life `/TTL/final-version.txt` still returns an empty HTTP404.
+Verify all four A records through the actual game resolver, then `/healthz`
+for all five tenants and `/games/snowblind/connectivity` for `adaptive` mode
+and the selected relay range. UDP handshake probes establish endpoint reachability;
+retail Internet join/gameplay still needs a client test. Keep existing capture
+preferences; raw capture remains disabled by default for new installations.
+
 ### Moving a standalone TDU research installation
 
 Stop the old standalone process and Quetzal before moving state. Preserve its

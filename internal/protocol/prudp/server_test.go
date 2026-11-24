@@ -636,3 +636,44 @@ func TestCancellationBeforeServeReleasesSocket(t *testing.T) {
 		conn.Close()
 	}
 }
+
+func TestImplicitPayloadSizeFragmentedResponse(t *testing.T) {
+	expected := bytes.Repeat([]byte("older SDK packet"), 20)
+	s, _ := startTestServer(t, func(o *Options) {
+		o.ImplicitPayloadSize = true
+		o.MaxDatagramSize = 96
+		o.Handler.(*testHandler).respond = func([]byte) [][]byte { return [][]byte{expected} }
+	})
+	c := newClient(t, s)
+	c.connect(t)
+	c.send(t, c.data(2, 0, []byte("request")))
+	if ack, _ := c.read(t); ack.Flags != FlagAck {
+		t.Fatal("request acknowledgement")
+	}
+	var assembled []byte
+	for seq := uint16(1); ; seq++ {
+		p, wire := c.read(t)
+		if p.Type != DATA || p.Flags&FlagSize != 0 || p.Sequence != seq || len(wire) > 96 {
+			t.Fatal("implicit packet layout", p, len(wire))
+		}
+		// Native 0x2fd088 puts payload immediately after DATA's fragment byte.
+		if !bytes.Equal(wire[11:len(wire)-1], p.Payload) {
+			t.Fatal("extra bytes precede the payload")
+		}
+		b, err := decodePayload(p.Payload, 1000)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assembled = append(assembled, b...)
+		c.ack(t, p)
+		if p.Fragment == 0 {
+			break
+		}
+		if p.Fragment != byte(seq) || seq > 10 {
+			t.Fatal("fragment order", p)
+		}
+	}
+	if !bytes.Equal(assembled, expected) {
+		t.Fatal("implicit fragment reassembly")
+	}
+}

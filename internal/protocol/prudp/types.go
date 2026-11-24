@@ -65,7 +65,11 @@ type Options struct {
 	// PlainPayload uses the observed 25 to Life compression wrapper without
 	// TDU's additional RC4 transport layer. Ticket crypto is separate.
 	PlainPayload bool
-	Observe      func(direction string, local, remote netip.AddrPort, wire []byte) error
+	// ImplicitPayloadSize omits the optional DATA size field for older clients
+	// whose native packet codec consumes the rest of each UDP datagram. Each
+	// response fragment still occupies one datagram. Other titles keep FlagSize.
+	ImplicitPayloadSize bool
+	Observe             func(direction string, local, remote netip.AddrPort, wire []byte) error
 	// Zero values select bounded server defaults, independently of retail timers.
 	MaxPeers       int
 	MaxInFlight    int

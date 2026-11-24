@@ -8,6 +8,14 @@ export XDG_CACHE_HOME="$PWD/work/ghidra-cache"
 export GHIDRA_HEADLESS_JAVA_OPTIONS="${GHIDRA_HEADLESS_JAVA_OPTIONS:-} -Duser.home=$PWD/work/ghidra-home"
 mkdir -p ghidra work/25tolife
 case "${1:-}" in
+  import-snowblind)
+    shift
+    mkdir -p work/snowblind
+    exec "$ghidra_install/support/analyzeHeadless" ghidra snowblind \
+      -import disc/snowblind/BO3NETGM.ELF -processor r5900:LE:32:default \
+      -scriptPath ghidra/scripts -analysisTimeoutPerFile 300 \
+      -log work/snowblind/import.log "$@"
+    ;;
   import-commandos)
     shift
     mkdir -p work/commandos
@@ -31,14 +39,15 @@ case "${1:-}" in
       -import disc/25tolife/SLUS_210.16 -processor r5900:LE:32:default \
       -analysisTimeoutPerFile 600 -log work/25tolife/import.log "$@"
     ;;
-  decompile|decompile-patcher|decompile-commandos)
+  decompile|decompile-patcher|decompile-commandos|decompile-snowblind)
     program=SLUS_210.16
     project=quetzal
     if [ "$1" = decompile-patcher ]; then program=PATCHLIB.bin; fi
     if [ "$1" = decompile-commandos ]; then program=COMMX_FR.ELF; project=commandos-online; fi
+    if [ "$1" = decompile-snowblind ]; then program=BO3NETGM.ELF; project=snowblind; fi
     shift
     if [ "$#" -lt 2 ]; then
-      echo 'Usage: tools/ghidra.sh decompile[-patcher|-commandos] OUTPUT ADDR|code:ADDR|refs:TEXT|addrrefs:ADDR|callers:ADDR|name:TEXT|range:START:END|asm:ADDR ...' >&2
+      echo 'Usage: tools/ghidra.sh decompile[-patcher|-commandos|-snowblind] OUTPUT ADDR|code:ADDR|refs:TEXT|addrrefs:ADDR|callers:ADDR|name:TEXT|range:START:END|asm:ADDR ...' >&2
       exit 2
     fi
     exec "$ghidra_install/support/analyzeHeadless" ghidra "$project" \
@@ -46,7 +55,7 @@ case "${1:-}" in
       -postScript Research.java "$@"
     ;;
   *)
-    echo 'Usage: tools/ghidra.sh import[-patcher|-commandos] | decompile[-patcher|-commandos] OUTPUT SELECTOR ...' >&2
+    echo 'Usage: tools/ghidra.sh import[-patcher|-commandos|-snowblind] | decompile[-patcher|-commandos|-snowblind] OUTPUT SELECTOR ...' >&2
     exit 2
     ;;
 esac

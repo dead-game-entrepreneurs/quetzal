@@ -578,7 +578,11 @@ func (s *Server) respond(c *connection, responses [][]byte, now time.Time) error
 					return ErrPacket
 				}
 			}
-			p := s.base(c, DATA, FlagReliable|FlagNeedsAck|FlagSize, c.next)
+			flags := byte(FlagReliable | FlagNeedsAck)
+			if !s.opts.ImplicitPayloadSize {
+				flags |= FlagSize
+			}
+			p := s.base(c, DATA, flags, c.next)
 			c.next++
 			if i < count-1 {
 				p.Fragment = fragment

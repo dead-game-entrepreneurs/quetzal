@@ -8,7 +8,8 @@
   A replacement for <b>Quazal Rendez-Vous / NetZ</b> online services,<br>
   with a tested <b>25 to Life PS2</b> adapter and experimental<br>
   <b>Test Drive Unlimited</b>, <b>World Championship Cards</b><br>
-  and <b>Commandos Strike Force</b> PS2 backends,<br>
+  <b>Commandos Strike Force</b> PS2 backends, and<br>
+  experimental <b>Project: Snowblind</b> online services,<br>
   using stock client protocols.
 </p>
 
@@ -25,7 +26,8 @@
   <a href="docs/games/25tolife/analysis.md">25 to Life notes</a> ·
   <a href="docs/games/tdu/online-map.md">TDU notes</a> ·
   <a href="docs/games/wcc/analysis.md">WCC notes</a> ·
-  <a href="docs/games/commandos/running.md">Commandos guide</a>
+  <a href="docs/games/commandos/running.md">Commandos guide</a> ·
+  <a href="docs/games/snowblind/running.md">Snowblind guide</a>
 </p>
 
 ---
@@ -120,6 +122,30 @@ merging probes for different ports. See the
 [Commandos run guide](docs/games/commandos/running.md) and
 [service map](docs/games/commandos/online-map.md) for evidence and remaining coverage.
 
+**Project: Snowblind** (US PS2, `SLUS-210.37`) is an experimental adapter.
+Two unmodified PCSX2 clients on separate LAN PCs have verified these flows:
+
+| Feature | Status |
+| --- | --- |
+| Account creation, login and Eidos profiles | ✅ tested in game |
+| Hosting, browser search, joining and round entry | ✅ tested in game |
+| Friend requests and acceptance | ✅ tested in game |
+| Clan creation, invitations, acceptance and roster | ✅ tested in game; membership persists |
+| Clan promotion and demotion | ✅ tested in game |
+| Clan notices and Officer recruiting/notice permissions | 🧪 implemented and synthetically tested; retail confirmation pending |
+| Round summaries and all 35 personal counters | ✅ both players' reports saved after a completed round |
+| Top Players, Player Search, Friends and Clan stats | ✅ populated menus tested in game; reload and duplicate replay checks pass |
+| Adaptive relay fallback | ✅ LAN join with direct peer UDP blocked; the same relay carried the completed round |
+| Same-IP player hosting, host departure and Internet NAT | 🧪 unverified |
+| Original ranking formula, clan kick/leave and leadership transfer | Not recovered or implemented |
+
+Snowblind reuses shared Quazal authentication, Eidos profiles, Ranking bootstrap
+and the native relay, with separate tenant state and a default UDP **30800–30927**
+relay pool. Its current leaderboard order is a documented replacement policy.
+See the [Snowblind run guide](docs/games/snowblind/running.md),
+[protocol inventory](docs/games/snowblind/protocols.md) and
+[statistics inventory](docs/games/snowblind/stats.md).
+
 All adapters can run in one process, with separate state, sockets and captures.
 Other Quazal titles still need their own adapters and verification.
 
@@ -189,6 +215,22 @@ cxliveSCEA.quazal.net
 
 See [configs/commandos.dns.yaml](configs/commandos.dns.yaml) and the
 [Commandos network setup](docs/games/commandos/running.md#network-setup).
+
+For **Project: Snowblind** (US PS2), point these names at its reachable server IPv4:
+
+```text
+sbusps2.quazal.net
+sb1.patch.eidos.com
+sb2.patch.eidos.com
+sb3.patch.eidos.com
+```
+
+The patch hosts request `/psb1a/scea.txt` over **TCP 80**. Reverse proxy
+`/psb1a/` to Quetzal's HTTP listener (default 8082) for the no-update manifest.
+Keep the separate 25 to Life empty-404 patch route intact. See
+[configs/snowblind.dns.yaml](configs/snowblind.dns.yaml) and the
+[Snowblind network setup](docs/games/snowblind/running.md#dns-and-http).
+
 All DNS examples use a documentation address; replace it with your server's
 address and preserve your separate DNAS routing.
 
@@ -225,9 +267,9 @@ QUETZAL_RELAY_FIRST_PORT=30400
 QUETZAL_RELAY_LAST_PORT=30527
 ```
 
-Use `commandos` or `wcc` for either game alone. For all four adapters, use
-`QUETZAL_GAMES=25tolife,tdu,wcc,commandos` with the same 25 to Life relay-pool
-adjustment. Commandos has its own relay pool and title-specific settings.
+Use `commandos` or `wcc` for either game alone. To include all five adapters, use
+`QUETZAL_GAMES=25tolife,tdu,wcc,commandos,snowblind` with the same 25 to Life relay-pool
+adjustment. Commandos and Snowblind have separate relay pools and title settings.
 
 The old relay default **30200–30327 overlaps TDU's 30200/30201 listeners**.
 Startup rejects overlaps with static or lazy-reserved UDP ports and never
@@ -275,11 +317,20 @@ Commandos Strike Force requires:
 | UDP 30061 | Commandos ticket-authenticated services |
 | UDP 30600–30727 | On-demand Commandos native relay endpoints |
 
+Project: Snowblind requires:
+
+| Port | Purpose |
+| --- | --- |
+| UDP 13015 | Snowblind authentication |
+| UDP 13016 | Snowblind ticket-authenticated services |
+| UDP 30800–30927 | On-demand Snowblind native relay endpoints |
+| TCP 80 | Retail no-update manifest, through your web server |
+
 Compose uses host networking to preserve observed peer addresses. 25 to Life
 accounts, profiles, friends, clans and statistics keep their existing private
 files under `data/state/`; its transient rooms are removed on host departure or
 restart. Each other game uses separate keys/accounts under
-`data/state/tenants/{game}/` (`tdu`, `wcc` or `commandos`).
+`data/state/tenants/{game}/` (`tdu`, `wcc`, `commandos` or `snowblind`).
 Stop with `docker compose down`. The `data/` directory stays on disk.
 
 After restarting the backend or changing connection modes, leave online mode
@@ -290,7 +341,7 @@ states if an old room ID remains cached.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `QUETZAL_GAMES` | `25tolife` | Enabled adapters, comma-separated: `25tolife`, `tdu`, `wcc`, `commandos` |
+| `QUETZAL_GAMES` | `25tolife` | Enabled adapters, comma-separated: `25tolife`, `tdu`, `wcc`, `commandos`, `snowblind` |
 | `QUETZAL_PUBLIC_IP` | bind address; set explicitly for hosting | Reachable server IPv4 |
 | `QUETZAL_BIND` | `127.0.0.1` (example uses `0.0.0.0`) | Local listener address |
 | `QUETZAL_HTTP_PORT` | `8082` | HTTP diagnostics and patch handler |
@@ -305,9 +356,13 @@ states if an old room ID remains cached.
 TDU-specific `QUETZAL_TDU_*` settings are [listed separately](docs/games/tdu/running.md#settings).
 Commandos-specific `QUETZAL_COMMANDOS_*` settings, including its default
 `adaptive` mode and UDP relay pool, are in the [Commandos guide](docs/games/commandos/running.md#settings).
+Snowblind-specific `QUETZAL_SNOWBLIND_*` settings, UDP 13015/13016 and the
+separate adaptive relay pool are in the
+[Snowblind run guide](docs/games/snowblind/running.md).
 Each adapter reads its settings only when enabled. `/healthz` reports all enabled tenants.
 HTTP handlers are scoped under `/games/{key}/`; 25 to Life also keeps its original
-`/TTL/` patch routes and `/connectivity` diagnostics.
+`/TTL/` patch routes and `/connectivity` diagnostics. Snowblind exposes
+`/psb1a/scea.txt` for the original patch HTTP path.
 
 ### 25 to Life connection modes
 
@@ -389,6 +444,7 @@ scripts/go build ./cmd/quetzal
 | `internal/games/ttl25` | 25 to Life codecs, matchmaking, friends, clans, stats and native relay |
 | `internal/games/tdu` | TDU adapter, native transport, sessions/presence, peer admission and title-data services |
 | `internal/games/wcc` | World Championship Cards matchmaking, migration and health checks |
+| `internal/games/snowblind` | Snowblind matchmaking, friends, clans, report receipts, leaderboards and native relay policy |
 | `internal/games/commandos` | Commandos account policy, gathering codec, discovery and peer/relay admission |
 | `internal/state` | Private keys and exclusive tenant state ownership |
 | `internal/capture` | Optional bounded private recording |

@@ -24,6 +24,9 @@ func testTenantsConfig(t *testing.T) app.Config {
 		"QUETZAL_TDU_DIRECTORY_PORT", "QUETZAL_TDU_RESOURCE_PORT",
 		"QUETZAL_TDU_SESSION_PORT", "QUETZAL_TDU_DENSITY_PORT", "QUETZAL_TDU_USERMAP_PORT",
 		"QUETZAL_TDU_ACTIVITY_CATALOG", "QUETZAL_TDU_NETCONFIG", "QUETZAL_TDU_PRIZE",
+		"QUETZAL_SNOWBLIND_BIND", "QUETZAL_SNOWBLIND_PUBLIC_IP", "QUETZAL_SNOWBLIND_AUTH_PORT",
+		"QUETZAL_SNOWBLIND_SECURE_PORT", "QUETZAL_SNOWBLIND_PAYLOAD_MODE",
+		"QUETZAL_SNOWBLIND_RELAY_MODE", "QUETZAL_SNOWBLIND_RELAY_FIRST_PORT", "QUETZAL_SNOWBLIND_RELAY_LAST_PORT",
 		"QUETZAL_COMMANDOS_BIND", "QUETZAL_COMMANDOS_PUBLIC_IP", "QUETZAL_COMMANDOS_AUTH_PORT",
 		"QUETZAL_COMMANDOS_SECURE_PORT", "QUETZAL_COMMANDOS_PAYLOAD_MODE",
 		"QUETZAL_COMMANDOS_RELAY_MODE", "QUETZAL_COMMANDOS_RELAY_FIRST_PORT", "QUETZAL_COMMANDOS_RELAY_LAST_PORT",
@@ -135,6 +138,7 @@ func TestDisabledAdaptersDoNotLoadTheirConfiguration(t *testing.T) {
 	cfg.Games = []string{"25tolife"}
 	t.Setenv("QUETZAL_TDU_AUTH_PORT", "invalid")
 	t.Setenv("QUETZAL_COMMANDOS_PAYLOAD_MODE", "invalid")
+	t.Setenv("QUETZAL_SNOWBLIND_PAYLOAD_MODE", "invalid")
 	defs, cleanup, err := buildTenants(cfg, testLog())
 	if err != nil {
 		t.Fatal(err)
@@ -218,6 +222,23 @@ func TestCommandosRelayPoolCannotOverlapAnotherTenant(t *testing.T) {
 		lock, _, err := app.OpenState(tenantStateDir(cfg.StateDir, name))
 		if err != nil {
 			t.Fatal(err)
+		}
+		lock.Close()
+	}
+}
+
+func TestSnowblindRelayPoolCannotOverlapAnotherTenant(t *testing.T) {
+	cfg := testTenantsConfig(t)
+	cfg.Games = append(cfg.Games, "commandos", "snowblind")
+	t.Setenv("QUETZAL_SNOWBLIND_RELAY_FIRST_PORT", "30600")
+	t.Setenv("QUETZAL_SNOWBLIND_RELAY_LAST_PORT", "30727")
+	if _, _, err := buildTenants(cfg, testLog()); err == nil {
+		t.Fatal("Snowblind relay overlapped Commandos")
+	}
+	for _, name := range cfg.Games {
+		lock, _, err := app.OpenState(tenantStateDir(cfg.StateDir, name))
+		if err != nil {
+			t.Fatal("failed startup retained tenant lock", err)
 		}
 		lock.Close()
 	}

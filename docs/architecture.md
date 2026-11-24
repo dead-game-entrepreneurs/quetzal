@@ -2,7 +2,8 @@
 
 Quetzal replaces Quazal online services for unmodified retail clients. The
 retail-tested adapter targets 25 to Life on PS2; experimental TDU, World
-Championship Cards and Commandos Strike Force PS2 adapters share the runtime.
+Championship Cards, Commandos Strike Force and Project: Snowblind PS2 adapters
+share the runtime.
 Real-console compatibility is a design requirement; client patches and
 emulator-only changes are outside the project.
 The layout follows Angelware while keeping Quazal framing, service numbers,
@@ -22,6 +23,7 @@ cryptography and traversal independent from DemonWare.
 | `internal/games/ttl25` | Eidos records, matchmaking, social operations, statistics and native relay policy |
 | `internal/games/tdu` | TDU tenant composition, native transport, sessions/presence, peer admission and title data |
 | `internal/games/wcc` | World Championship Cards gatherings, host migration and health checks |
+| `internal/games/snowblind` | BO3Match/rounds, friends/clans, receipt-based stats, leaderboards and native relay policy |
 | `internal/games/commandos` | Commandos signup policy, gatherings, regex discovery and peer-introduction admission |
 | `internal/state` | Private keys, state files and exclusive tenant locks |
 | `internal/capture` | Optional bounded packet recording |
@@ -35,7 +37,8 @@ gameplay protocols interchangeable.
 
 ## Runtime ownership
 
-`QUETZAL_GAMES` selects any combination of `25tolife`, `tdu`, `wcc` and `commandos`;
+`QUETZAL_GAMES` selects any combination of `25tolife`, `tdu`, `wcc`, `commandos`
+and `snowblind`;
 the default stays `25tolife`.
 Unknown and duplicate keys fail before tenant state is created. Only enabled
 adapters load their settings, stores and keys. Each tenant owns a separate state
@@ -183,6 +186,31 @@ retail online entry or a completed race. See the
 [session contract](games/tdu/sessionmaster.md),
 [peer admission](games/tdu/peer-connectivity.md) and
 [title services](games/tdu/title-services.md).
+
+## Project: Snowblind services
+
+Snowblind composes the shared auth/secure endpoint pair with plain PRUDP,
+checksum seed 0x02 and an explicit `ImplicitPayloadSize` transport option for
+its older SDK. Other adapters keep their existing DATA size field. Eidos
+account validation and the persistent bootstrap `RankingStore` are shared
+with 25 to Life; each title supplies its own ranking metadata and state path.
+The extracted 25 to Life ranking format remains compatible with existing files.
+
+Snowblind owns BO3Match lobby and BO3Round lifecycles, bounded search predicates,
+exact-connection URL authority, social codecs and ranking queries. Accounts,
+keys, BO3Stats metadata, friends, clans and report receipts live under
+`tenants/snowblind/`. Clan roles/notices/invitations persist independently from
+transient online presence. Durable round/player receipts are the statistics
+source of truth: identical replays are idempotent, conflicts fail, and copied
+scoreboard rows cannot award another player. See the [stats contract](games/snowblind/stats.md).
+
+Its adaptive relay uses the shared pair engine with a separate default pool,
+30800–30927. The adapter authorizes native introductions and URL publication;
+the engine proves both mappings and activates forwarding only after an alternate
+SYN. Title-specific candidate ordering handles the native address/RVCID cache,
+which ignores UDP port. A blocked-direct LAN join, completed relayed round and
+populated stats menus are retail-confirmed. Internet NAT remains unverified.
+See the [run guide](games/snowblind/running.md).
 
 ## Diagnostics and validation
 

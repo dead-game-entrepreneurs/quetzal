@@ -1,0 +1,83 @@
+{
+  "kind": "retail_nat_payload_with_hooked_sdk_helpers",
+  "writer": "0x35c6a0",
+  "reader": "0x35c7d0",
+  "payload_hex": "00070000004433221100000000",
+  "write_widths": [
+    1,
+    4,
+    8
+  ],
+  "read_width_offsets": [
+    [
+      1,
+      0
+    ],
+    [
+      4,
+      1
+    ],
+    [
+      8,
+      5
+    ]
+  ],
+  "reader_matches": true,
+  "executed_translated_instructions": [
+    "0x316680",
+    "0x35c6a4",
+    "0x35c6a8",
+    "0x35c6ac",
+    "0x35c6b0",
+    "0x35c6b8",
+    "0x35c6bc",
+    "0x35c6c0",
+    "0x35c6c4",
+    "0x35c6c8",
+    "0x35c6cc",
+    "0x35c6d0",
+    "0x35c6d8",
+    "0x35c6e0",
+    "0x35c6ec",
+    "0x35c6f8",
+    "0x35c718",
+    "0x35c71c",
+    "0x35c724",
+    "0x35c734",
+    "0x35c738",
+    "0x35c750",
+    "0x35c768",
+    "0x35c77c",
+    "0x35c780",
+    "0x35c784",
+    "0x35c790",
+    "0x35c7a0",
+    "0x35c7a4",
+    "0x35c7b0",
+    "0x35c7b4",
+    "0x35c7b8",
+    "0x35c7bc",
+    "0x35c7c0",
+    "0x35c7d4",
+    "0x35c7d8",
+    "0x35c7dc",
+    "0x35c7e0",
+    "0x35c7e4",
+    "0x35c7e8",
+    "0x35c7ec",
+    "0x35c7f4",
+    "0x35c800",
+    "0x35c804",
+    "0x35c808",
+    "0x35c814",
+    "0x35c81c",
+    "0x35c82c",
+    "0x35c848",
+    "0x35c84c",
+    "0x35c860",
+    "0x35c870",
+    "0x35c874",
+    "0x35c878",
+    "0x35c87c"
+  ]
+}

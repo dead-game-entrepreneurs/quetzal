@@ -70,3 +70,18 @@ Further TDU research should resolve the initial nonzero directory IPv4 handoff
 before claiming stock online entry, then validate discovery/session/peer admission
 separately from cruising and racing. DNAS continues through the existing working
 revival route and is outside this remaining TDU work.
+
+## Project: Snowblind initial investigation
+
+The US PS2 [build/reuse assessment](games/snowblind/analysis.md) and
+[service inventory](games/snowblind/protocols.md) cover authentication,
+post-login ranking/tuning, gathering/round lifecycle, friends, clans, statistics
+and the patch-check requirements. This is research only; no Snowblind adapter
+is enabled yet. Use `tools/extract_snowblind.sh`, `tools/ghidra.sh
+import-snowblind` and `decompile-snowblind`. The project is
+`ghidra/snowblind.gpr`; `tools/inspect_snowblind_archive.py` optionally extracts
+selected local resources into ignored `work/snowblind/resources/`.
+
+Trace the actual protocol registration, rather than interpreting the internal
+ClientService constructor IDs as wire protocol numbers. Snowblind binds the
+shared 10/11/21/25 families and separate custom 101/102/103 extensions.

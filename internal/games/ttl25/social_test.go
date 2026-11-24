@@ -2,6 +2,7 @@ package ttl25
 
 import (
 	"bytes"
+	"path/filepath"
 	"testing"
 
 	"github.com/princebyyourlogic/quetzal/internal/protocol/quazal"
@@ -69,7 +70,10 @@ func TestInitialBrowseReturnsNoPlayableSessions(t *testing.T) {
 			}
 		}
 	}
-	s := &rankingStore{}
+	s, err := openRanking(filepath.Join(t.TempDir(), "ranking.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	got, err := s.handle(1000, quazal.Request{Protocol: 21, Method: 24, Args: append(rankingU32(nil, 0), rankingU32(nil, 25)...)})
 	if err != nil || !bytes.Equal(got, []byte{0, 0, 0, 0}) {
 		t.Fatal("empty gathering invitations", err)

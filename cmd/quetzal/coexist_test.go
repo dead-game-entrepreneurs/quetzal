@@ -31,7 +31,7 @@ func (h readinessLog) Handle(ctx context.Context, r slog.Record) error {
 
 func TestAllAdaptersServeTogether(t *testing.T) {
 	cfg := testTenantsConfig(t)
-	cfg.Games = append(cfg.Games, "commandos", "wcc")
+	cfg.Games = append(cfg.Games, "commandos", "wcc", "snowblind")
 	cfg.HTTPPort = 0
 	defs, cleanup, err := buildTenants(cfg, testLog())
 	if err != nil {
@@ -86,15 +86,15 @@ func TestAllAdaptersServeTogether(t *testing.T) {
 		}
 	}
 	get("/healthz", &health)
-	if health.Status != "multi_tenant" || len(health.Tenants) != 4 {
+	if health.Status != "multi_tenant" || len(health.Tenants) != 5 {
 		t.Fatalf("health %+v", health)
 	}
-	for i, want := range []int{5, 4, 2, 2} {
+	for i, want := range []int{5, 4, 2, 2, 2} {
 		if len(health.Tenants[i].UDP) != want || health.Tenants[i].Game != cfg.Games[i] {
 			t.Fatalf("tenant health %+v", health.Tenants[i])
 		}
 	}
-	for _, key := range []string{"tdu", "commandos"} {
+	for _, key := range []string{"tdu", "commandos", "snowblind"} {
 		var result struct {
 			Game            string
 			RetailValidated bool `json:"retail_validated"`

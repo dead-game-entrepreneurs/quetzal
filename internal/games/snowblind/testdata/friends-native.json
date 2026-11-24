@@ -1,0 +1,241 @@
+{
+  "kind": "retail_friend_row_codecs_with_hooked_sdk_primitives",
+  "reader_matches": true,
+  "query_replies_hex": {
+    "0_offline": "01000000e903000007005365636f6e64000001000004005441470000000000",
+    "0_online": "01000000e903000007005365636f6e64000003007c7c0004005441470000000000",
+    "1_offline": "01000000e903000007005365636f6e64000101000004005441470000000000",
+    "1_online": "01000000e903000007005365636f6e64000103007c7c0004005441470000000000",
+    "2_offline": "01000000e903000007005365636f6e64000201000004005441470000000000",
+    "2_online": "01000000e903000007005365636f6e64000203007c7c0004005441470000000000"
+  },
+  "trace": {
+    "0_offline": [
+      {
+        "kind": "u32",
+        "value": 1001
+      },
+      {
+        "kind": "string",
+        "value": "Second"
+      },
+      {
+        "kind": "u8",
+        "value": 0
+      },
+      {
+        "kind": "string",
+        "value": ""
+      },
+      {
+        "kind": "string",
+        "value": "TAG"
+      },
+      {
+        "kind": "u32",
+        "value": 0
+      }
+    ],
+    "0_online": [
+      {
+        "kind": "u32",
+        "value": 1001
+      },
+      {
+        "kind": "string",
+        "value": "Second"
+      },
+      {
+        "kind": "u8",
+        "value": 0
+      },
+      {
+        "kind": "string",
+        "value": "||"
+      },
+      {
+        "kind": "string",
+        "value": "TAG"
+      },
+      {
+        "kind": "u32",
+        "value": 0
+      }
+    ],
+    "1_offline": [
+      {
+        "kind": "u32",
+        "value": 1001
+      },
+      {
+        "kind": "string",
+        "value": "Second"
+      },
+      {
+        "kind": "u8",
+        "value": 1
+      },
+      {
+        "kind": "string",
+        "value": ""
+      },
+      {
+        "kind": "string",
+        "value": "TAG"
+      },
+      {
+        "kind": "u32",
+        "value": 0
+      }
+    ],
+    "1_online": [
+      {
+        "kind": "u32",
+        "value": 1001
+      },
+      {
+        "kind": "string",
+        "value": "Second"
+      },
+      {
+        "kind": "u8",
+        "value": 1
+      },
+      {
+        "kind": "string",
+        "value": "||"
+      },
+      {
+        "kind": "string",
+        "value": "TAG"
+      },
+      {
+        "kind": "u32",
+        "value": 0
+      }
+    ],
+    "2_offline": [
+      {
+        "kind": "u32",
+        "value": 1001
+      },
+      {
+        "kind": "string",
+        "value": "Second"
+      },
+      {
+        "kind": "u8",
+        "value": 2
+      },
+      {
+        "kind": "string",
+        "value": ""
+      },
+      {
+        "kind": "string",
+        "value": "TAG"
+      },
+      {
+        "kind": "u32",
+        "value": 0
+      }
+    ],
+    "2_online": [
+      {
+        "kind": "u32",
+        "value": 1001
+      },
+      {
+        "kind": "string",
+        "value": "Second"
+      },
+      {
+        "kind": "u8",
+        "value": 2
+      },
+      {
+        "kind": "string",
+        "value": "||"
+      },
+      {
+        "kind": "string",
+        "value": "TAG"
+      },
+      {
+        "kind": "u32",
+        "value": 0
+      }
+    ]
+  },
+  "incoming_alert_by_relationship": {
+    "0": true,
+    "1": false,
+    "2": false
+  },
+  "executed_translated_instructions": [
+    "0x15fe2c",
+    "0x15fe30",
+    "0x15fe34",
+    "0x15fe38",
+    "0x15fe40",
+    "0x15fe44",
+    "0x15fe48",
+    "0x15fe54",
+    "0x15fe68",
+    "0x15fe6c",
+    "0x15fe80",
+    "0x15fe88",
+    "0x15feb4",
+    "0x15fef0",
+    "0x15fef4",
+    "0x15fef8",
+    "0x15fefc",
+    "0x15ff00",
+    "0x15ff14",
+    "0x15ff18",
+    "0x15ff1c",
+    "0x15ff20",
+    "0x15ff24",
+    "0x15ff28",
+    "0x15ff2c",
+    "0x15ff34",
+    "0x15ff3c",
+    "0x15ff40",
+    "0x15ff48",
+    "0x15ff4c",
+    "0x15ff58",
+    "0x15ff64",
+    "0x15ff78",
+    "0x15ff80",
+    "0x15ff84",
+    "0x160078",
+    "0x16007c",
+    "0x160080",
+    "0x160084",
+    "0x160088",
+    "0x16008c",
+    "0x160090",
+    "0x160094",
+    "0x22363c",
+    "0x223640",
+    "0x223644",
+    "0x223648",
+    "0x223658",
+    "0x223668",
+    "0x223674",
+    "0x223680",
+    "0x223688",
+    "0x223698",
+    "0x2236b4",
+    "0x2236bc",
+    "0x2236c4",
+    "0x2236d4",
+    "0x2236d8",
+    "0x2236e0",
+    "0x2236e4",
+    "0x2236e8",
+    "0x2236ec",
+    "0x2236f0",
+    "0x2236f4"
+  ]
+}

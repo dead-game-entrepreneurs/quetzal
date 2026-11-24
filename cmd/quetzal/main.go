@@ -16,6 +16,7 @@ import (
 	"github.com/princebyyourlogic/quetzal/internal/app"
 	"github.com/princebyyourlogic/quetzal/internal/game"
 	"github.com/princebyyourlogic/quetzal/internal/games/commandos"
+	"github.com/princebyyourlogic/quetzal/internal/games/snowblind"
 	"github.com/princebyyourlogic/quetzal/internal/games/tdu"
 	"github.com/princebyyourlogic/quetzal/internal/games/ttl25"
 	"github.com/princebyyourlogic/quetzal/internal/games/wcc"
@@ -99,8 +100,8 @@ func buildTenants(cfg app.Config, log *slog.Logger) (defs []game.Definition, cle
 	// Reject unknown adapters before creating any state.
 	seen := map[string]bool{}
 	for _, key := range keys {
-		if key != "25tolife" && key != "tdu" && key != "wcc" && key != "commandos" {
-			return nil, cleanup, fmt.Errorf("unknown game %q; available: 25tolife,tdu,wcc,commandos", key)
+		if key != "25tolife" && key != "tdu" && key != "wcc" && key != "commandos" && key != "snowblind" {
+			return nil, cleanup, fmt.Errorf("unknown game %q; available: 25tolife,tdu,wcc,commandos,snowblind", key)
 		}
 		if seen[key] {
 			return nil, cleanup, fmt.Errorf("duplicate game %q", key)
@@ -117,6 +118,12 @@ func buildTenants(cfg app.Config, log *slog.Logger) (defs []game.Definition, cle
 		tenantLog := log.With("tenant", key, "game", key)
 		var def game.Definition
 		switch key {
+		case "snowblind":
+			config, loadErr := snowblind.LoadConfig(cfg.Bind, cfg.PublicIP, dir)
+			if loadErr != nil {
+				return defs, cleanup, fmt.Errorf("tenant %s config: %w", key, loadErr)
+			}
+			def, err = snowblind.Definition(tenantLog, config, principal)
 		case "commandos":
 			config, loadErr := commandos.LoadConfig(cfg.Bind, cfg.PublicIP, dir)
 			if loadErr != nil {
