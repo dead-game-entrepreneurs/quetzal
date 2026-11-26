@@ -276,3 +276,18 @@ func TestWCCTenantIsolatesStateAndRejectsDefaultRelayOverlap(t *testing.T) {
 		t.Fatal("WCC tenant state not isolated", err)
 	}
 }
+func TestRSVPSPTenantUsesRetailPortsAndIsolatedState(t *testing.T) {
+	cfg := testTenantsConfig(t)
+	cfg.Games = []string{"wcc", "rsvpsp"}
+	defs, cleanup, err := buildTenants(cfg, testLog())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanup()
+	if len(defs) != 2 || defs[1].Key != "rsvpsp" || len(defs[1].UDPPorts) != 2 || defs[1].UDPPorts[0] != 30380 || defs[1].UDPPorts[1] != 30381 {
+		t.Fatalf("RSV definition %+v", defs[1])
+	}
+	if _, err := os.Stat(filepath.Join(cfg.StateDir, "tenants", "rsvpsp", "principal.key")); err != nil {
+		t.Fatal("RSV tenant state not isolated", err)
+	}
+}

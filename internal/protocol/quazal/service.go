@@ -349,6 +349,8 @@ func (s *Service) dispatch(peer prudp.Peer, state *peerState, request Request) (
 		return s.updateContact(state, request.Args)
 	case s.options.Role == Secure && request.Protocol == 25 && request.Method == 13:
 		return s.updateAccountData(state, request.Args)
+	case s.options.Role == Secure && request.Protocol == 25 && request.Method == 21:
+		return s.signupWithData(state, request.Args)
 	case s.options.Role == Secure && request.Protocol == 25 && request.Method == 17:
 		return s.setStatus(peer, state, request.Args)
 	case s.options.Role == Secure && request.Protocol == 3 && request.Method == 1:
@@ -545,23 +547,37 @@ func (s *Service) signup(state *peerState, args []byte) ([]byte, error) {
 		return nil, errors.New("signup requires a registered guest connection")
 	}
 	r := reader{data: args}
-	name := r.str(15)
-	text := r.str(32)
-	parameter := r.u32()
-	contact := r.str(255)
-	if !r.done() || parameter != s.options.Signup.Parameter || len(text) != 32 || strings.EqualFold(name, s.options.Signup.Name) {
+	name, initial, contact, err := s.signupFields(&r)
+	if err != nil {
+		return nil, err
+	}
+	if !r.done() {
 		return nil, errors.New("unsupported signup shape")
 	}
-	raw, err := hex.DecodeString(text)
-	if err != nil || len(raw) != 16 {
-		return nil, errors.New("invalid initial hash")
-	}
-	var initial quazalcrypto.Key
-	copy(initial[:], raw)
 	if _, err := s.options.Store.CreateWithContact(name, initial, contact); err != nil {
 		return nil, err
 	}
 	w := writer{}
 	w.u32(Success)
 	return w.data, w.err
+}
+
+// signupFields reads the CreateAccount fields shared by 25/1 and 25/21:
+// name, the 32-hex initial password hash, the title's signup parameter and
+// contact, checked against the Signup policy.
+func (s *Service) signupFields(r *reader) (string, quazalcrypto.Key, string, error) {
+	name := r.str(15)
+	text := r.str(32)
+	parameter := r.u32()
+	contact := r.str(255)
+	var initial quazalcrypto.Key
+	if r.err != nil || parameter != s.options.Signup.Parameter || len(text) != 32 || strings.EqualFold(name, s.options.Signup.Name) {
+		return "", initial, "", errors.New("unsupported signup shape")
+	}
+	raw, err := hex.DecodeString(text)
+	if err != nil || len(raw) != 16 {
+		return "", initial, "", errors.New("invalid initial hash")
+	}
+	copy(initial[:], raw)
+	return name, initial, contact, nil
 }

@@ -27,7 +27,8 @@
   <a href="docs/games/tdu/online-map.md">TDU notes</a> ·
   <a href="docs/games/wcc/analysis.md">WCC notes</a> ·
   <a href="docs/games/commandos/running.md">Commandos guide</a> ·
-  <a href="docs/games/snowblind/running.md">Snowblind guide</a>
+  <a href="docs/games/snowblind/running.md">Snowblind guide</a> ·
+  <a href="docs/games/rsvpsp/analysis.md">Rainbow Six Vegas PSP notes</a>
 </p>
 
 ---
@@ -146,6 +147,22 @@ See the [Snowblind run guide](docs/games/snowblind/running.md),
 [protocol inventory](docs/games/snowblind/protocols.md) and
 [statistics inventory](docs/games/snowblind/stats.md).
 
+**Tom Clancy's Rainbow Six Vegas** (US PSP, `ULUS-10206`) is an early adapter
+for PPSSPP:
+
+| Feature | Status |
+| --- | --- |
+| Account creation with the profile form, and login | ✅ tested in PPSSPP |
+| Creating, browsing and joining a match; playing it on one LAN | ✅ two PCs played a match (PPSSPP) |
+| Multi-round matches: reports, next round, return to the lobby | ✅ two PCs played three rounds (PPSSPP) |
+| Friends: requests, accept or deny, delete, friends list, joining a friend's game | 🧪 implemented from the disassembly; not yet tested in PPSSPP |
+| Statistics: own, friends, participants, leaderboard (rating, rank, accuracy, play time) | 🧪 kept from match reports; not yet tested in PPSSPP |
+| Game invitations | 🧪 empty list only, so the menu can open |
+| Play across NATs | Not implemented |
+
+See the [Rainbow Six Vegas notes](docs/games/rsvpsp/analysis.md) and
+[test guide](docs/games/rsvpsp/testing.md).
+
 All adapters can run in one process, with separate state, sockets and captures.
 Other Quazal titles still need their own adapters and verification.
 
@@ -234,6 +251,10 @@ Keep the separate 25 to Life empty-404 patch route intact. See
 All DNS examples use a documentation address; replace it with your server's
 address and preserve your separate DNAS routing.
 
+For **Rainbow Six Vegas** (PSP), redirect `rsvegaspsp.quazal.net` and point
+PPSSPP's DNS server at that resolver; see
+[configs/rsvpsp.dns.yaml](configs/rsvpsp.dns.yaml). The game has no DNAS.
+
 ## Running the server
 
 You need Docker with Compose on a host supporting Linux host networking.
@@ -267,8 +288,8 @@ QUETZAL_RELAY_FIRST_PORT=30400
 QUETZAL_RELAY_LAST_PORT=30527
 ```
 
-Use `commandos` or `wcc` for either game alone. To include all five adapters, use
-`QUETZAL_GAMES=25tolife,tdu,wcc,commandos,snowblind` with the same 25 to Life relay-pool
+Use `commandos` or `wcc` for either game alone. To include all six adapters, use
+`QUETZAL_GAMES=25tolife,tdu,wcc,commandos,snowblind,rsvpsp` with the same 25 to Life relay-pool
 adjustment. Commandos and Snowblind have separate relay pools and title settings.
 
 The old relay default **30200–30327 overlaps TDU's 30200/30201 listeners**.
@@ -326,11 +347,18 @@ Project: Snowblind requires:
 | UDP 30800–30927 | On-demand Snowblind native relay endpoints |
 | TCP 80 | Retail no-update manifest, through your web server |
 
+Rainbow Six Vegas (PSP) requires:
+
+| Port | Purpose |
+| --- | --- |
+| UDP 30380 | Rainbow Six Vegas authentication |
+| UDP 30381 | Rainbow Six Vegas ticket-authenticated services |
+
 Compose uses host networking to preserve observed peer addresses. 25 to Life
 accounts, profiles, friends, clans and statistics keep their existing private
 files under `data/state/`; its transient rooms are removed on host departure or
 restart. Each other game uses separate keys/accounts under
-`data/state/tenants/{game}/` (`tdu`, `wcc`, `commandos` or `snowblind`).
+`data/state/tenants/{game}/` (`tdu`, `wcc`, `commandos`, `snowblind` or `rsvpsp`).
 Stop with `docker compose down`. The `data/` directory stays on disk.
 
 After restarting the backend or changing connection modes, leave online mode
@@ -341,7 +369,7 @@ states if an old room ID remains cached.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `QUETZAL_GAMES` | `25tolife` | Enabled adapters, comma-separated: `25tolife`, `tdu`, `wcc`, `commandos`, `snowblind` |
+| `QUETZAL_GAMES` | `25tolife` | Enabled adapters, comma-separated: `25tolife`, `tdu`, `wcc`, `commandos`, `snowblind`, `rsvpsp` |
 | `QUETZAL_PUBLIC_IP` | bind address; set explicitly for hosting | Reachable server IPv4 |
 | `QUETZAL_BIND` | `127.0.0.1` (example uses `0.0.0.0`) | Local listener address |
 | `QUETZAL_HTTP_PORT` | `8082` | HTTP diagnostics and patch handler |
@@ -446,6 +474,7 @@ scripts/go build ./cmd/quetzal
 | `internal/games/wcc` | World Championship Cards matchmaking, migration and health checks |
 | `internal/games/snowblind` | Snowblind matchmaking, friends, clans, report receipts, leaderboards and native relay policy |
 | `internal/games/commandos` | Commandos account policy, gathering codec, discovery and peer/relay admission |
+| `internal/games/rsvpsp` | Rainbow Six Vegas (PSP) accounts, profile records, hosted matches, friends and statistics |
 | `internal/state` | Private keys and exclusive tenant state ownership |
 | `internal/capture` | Optional bounded private recording |
 | `tools/`, `ghidra/scripts/` | Local disc analysis helpers; not used by the server |

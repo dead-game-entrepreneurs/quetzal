@@ -308,7 +308,20 @@ func (s *Store) UpdateContact(pid uint32, contact string) error {
 	return nil
 }
 func (s *Store) CreateWithContact(name string, initial quazalcrypto.Key, contact string) (Account, error) {
-	if len(contact) > 255 {
+	return s.create(name, initial, contact, nil, nil)
+}
+
+// CreateWithData creates an account and its public/private records in one
+// write, for titles whose signup carries the profile (AccountManagement 25/21).
+func (s *Store) CreateWithData(name string, initial quazalcrypto.Key, contact string, public, private AnyData) (Account, error) {
+	if !validData(&public) || !validData(&private) {
+		return Account{}, errors.New("quazal: invalid account data")
+	}
+	return s.create(name, initial, contact, &public, &private)
+}
+
+func (s *Store) create(name string, initial quazalcrypto.Key, contact string, public, private *AnyData) (Account, error) {
+	if len(contact) > 255 || strings.IndexByte(contact, 0) >= 0 {
 		return Account{}, errors.New("quazal: invalid contact")
 	}
 	canonical, err := s.canonicalName(name)
@@ -333,7 +346,7 @@ func (s *Store) CreateWithContact(name string, initial quazalcrypto.Key, contact
 	if pid == ^uint32(0) {
 		return Account{}, errors.New("quazal: PID space exhausted")
 	}
-	a := Account{Name: name, PID: pid, InitialKey: initial, Contact: contact}
+	a := Account{Name: name, PID: pid, InitialKey: initial, Contact: contact, PublicData: cloneData(public), PrivateData: cloneData(private)}
 	updated := make(map[string]Account, len(s.accounts)+1)
 	for k, v := range s.accounts {
 		updated[k] = v

@@ -67,6 +67,36 @@ func (s *Service) updateAccountData(state *peerState, args []byte) ([]byte, erro
 	return w.data, w.err
 }
 
+// signupWithData is AccountManagement 25/21 (CreateAccountWithCustomData):
+// the 25/1 fields followed by public and private any<Data> records, which the
+// title schema must accept. The method returns void, so a success reply has
+// no application fields. Titles without ValidateAccountData reject it.
+func (s *Service) signupWithData(state *peerState, args []byte) ([]byte, error) {
+	if !state.proof || !state.guest || !state.registered {
+		return nil, errors.New("signup requires a registered guest connection")
+	}
+	if s.options.ValidateAccountData == nil {
+		return nil, errors.New("account data schema is unavailable")
+	}
+	r := reader{data: args}
+	name, initial, contact, err := s.signupFields(&r)
+	if err != nil {
+		return nil, err
+	}
+	public := AnyData{Type: r.str(128), Payload: r.buffer(MaxAccountData)}
+	private := AnyData{Type: r.str(128), Payload: r.buffer(MaxAccountData)}
+	if !r.done() || !validData(&public) || !validData(&private) {
+		return nil, ErrRMC
+	}
+	if err := s.options.ValidateAccountData(public, private); err != nil {
+		return nil, err
+	}
+	if _, err := s.options.Store.CreateWithData(name, initial, contact, public, private); err != nil {
+		return nil, err
+	}
+	return nil, nil
+}
+
 func (s *Service) updateContact(state *peerState, args []byte) ([]byte, error) {
 	if !state.proof || !state.registered || state.guest {
 		return nil, errors.New("contact update requires registered account proof")

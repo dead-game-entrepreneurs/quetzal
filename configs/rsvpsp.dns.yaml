@@ -1,0 +1,6 @@
+# Example rule for revive-dns. Replace the documentation address with your server.
+# PPSSPP: turn off infrastructure DNS autoconfiguration and use this DNS server.
+- service: quetzal-rsvpsp
+  names:
+    - rsvegaspsp.quazal.net
+  answer: "203.0.113.10"

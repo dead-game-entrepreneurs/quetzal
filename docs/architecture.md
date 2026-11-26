@@ -25,6 +25,7 @@ cryptography and traversal independent from DemonWare.
 | `internal/games/wcc` | World Championship Cards gatherings, host migration and health checks |
 | `internal/games/snowblind` | BO3Match/rounds, friends/clans, receipt-based stats, leaderboards and native relay policy |
 | `internal/games/commandos` | Commandos signup policy, gatherings, regex discovery and peer-introduction admission |
+| `internal/games/rsvpsp` | Rainbow Six Vegas (PSP) accounts, Spark profile records, hosted matches, friends and statistics |
 | `internal/state` | Private keys, state files and exclusive tenant locks |
 | `internal/capture` | Optional bounded packet recording |
 
@@ -37,8 +38,8 @@ gameplay protocols interchangeable.
 
 ## Runtime ownership
 
-`QUETZAL_GAMES` selects any combination of `25tolife`, `tdu`, `wcc`, `commandos`
-and `snowblind`;
+`QUETZAL_GAMES` selects any combination of `25tolife`, `tdu`, `wcc`, `commandos`,
+`snowblind` and `rsvpsp`;
 the default stays `25tolife`.
 Unknown and duplicate keys fail before tenant state is created. Only enabled
 adapters load their settings, stores and keys. Each tenant owns a separate state
@@ -91,6 +92,8 @@ statistics and challenge files. Enabling TDU does not move or merge
 WCC likewise uses `QUETZAL_STATE_DIR/tenants/wcc/` for its own key and
 accounts; its gatherings are in memory only. Its store accepts spaces inside
 account names (`quazal.NamePolicy`), which the other titles reject.
+Rainbow Six Vegas (PSP) uses `QUETZAL_STATE_DIR/tenants/rsvpsp/`; its accounts
+keep the Spark profile records sent at signup.
 
 25 to Life account names, password-derived initial hashes, profiles and contact
 fields are private.
@@ -153,6 +156,21 @@ the server send the target a 3/2 probe toward the requester. After 21/36 the
 remaining participants receive a 14/1 ownership-change event through the shared
 `GameServerCalls` hook, which delivers title-authorized server calls only to
 registered named peers. See [WCC notes](games/wcc/analysis.md).
+
+## Rainbow Six Vegas (PSP) services
+
+The PSP title uses the same shared login, ticket and registration flow with
+checksum seed 0x1f (US access key) and the plain raw/LZO wrapper on UDP
+30380/30381. Its sign-up calls AccountManagement 25/21
+(CreateAccountWithCustomData) from a registered guest: the 25/1 fields plus
+`AccountInfoPublicData` and `AccountInfoPrivateData` records. The shared
+service handles 25/21 only for titles that supply `ValidateAccountData`, and
+creates the account and both records in one store write; the reply has no
+application fields. The adapter answers the Spark title protocol (60: hosted
+matches, statistics, the friends list), Friends (20), MatchMaking 21/18 and
+21/39 and NAT 3/3 itself, and logs and refuses other title calls. Friendships
+and career statistics persist in the tenant's `friends.json` and `stats.json`.
+See [Rainbow Six Vegas notes](games/rsvpsp/analysis.md).
 
 ## TDU native services
 

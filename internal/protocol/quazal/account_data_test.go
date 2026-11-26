@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -169,5 +170,51 @@ func TestLegacyAccountMigrationPreservesCredentials(t *testing.T) {
 	}
 	if err := json.Unmarshal(b, &disk); err != nil || disk.Version != 2 {
 		t.Fatal("migration did not write version 2")
+	}
+}
+
+func TestSignupWithDataNeedsSchemaAndStoresRecordsAtomically(t *testing.T) {
+	f := newFixture(t)
+	pid, ticket := startAuth(t, f, authPeer(1), "guest", quazalcrypto.PasswordKey([]byte(guestPassword), GuestPID))
+	startSecure(t, f, securePeer(2), pid, ticket, 11)
+	registerPeer(t, f, securePeer(2))
+	initial := quazalcrypto.InitialKey([]byte("synthetic-password"))
+	public, private := []byte{1, 0, 0, 0, 7}, []byte{0, 0, 0, 0}
+	args := arguments(func(w *writer) {
+		w.str("ProfileOne")
+		w.str(hex.EncodeToString(initial[:]))
+		w.u32(0x20)
+		w.str("one@example.test")
+		w.str("PublicFixture")
+		w.buffer(public)
+		w.str("PrivateFixture")
+		w.buffer(private)
+	})
+	if rpc(t, f.secure, securePeer(2), 25, 21, 20, args).Success {
+		t.Fatal("25/21 accepted without a title schema")
+	}
+	if _, ok := f.store.Lookup("ProfileOne"); ok {
+		t.Fatal("rejected signup created an account")
+	}
+	f.secure.options.ValidateAccountData = func(public, private AnyData) error {
+		if public.Type != "PublicFixture" || private.Type != "PrivateFixture" {
+			return errors.New("schema")
+		}
+		return nil
+	}
+	got := rpc(t, f.secure, securePeer(2), 25, 21, 21, args)
+	if !got.Success || len(got.Payload) != 0 {
+		t.Fatal("25/21 reply must have no application fields")
+	}
+	loaded, err := OpenStore(f.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, ok := loaded.Lookup("ProfileOne")
+	if !ok || a.InitialKey != initial || a.Contact != "one@example.test" || a.PublicData == nil || !bytes.Equal(a.PublicData.Payload, public) || a.PrivateData.Type != "PrivateFixture" || !bytes.Equal(a.PrivateData.Payload, private) {
+		t.Fatalf("stored account %+v", a)
+	}
+	if rpc(t, f.secure, securePeer(2), 25, 21, 22, args).Success {
+		t.Fatal("duplicate signup accepted")
 	}
 }
