@@ -12,9 +12,11 @@ Credit to michal-kapala and the contributors to that earlier restoration.
 The reference repository's [LICENSE](https://github.com/michal-kapala/25tl-rdv/blob/6d10c7469ea12c1028a44e14fceb1fb27c88c5c3/LICENSE)
 contains MIT terms **and Commons Clause v1.0**, including a restriction on
 selling the software and related services. It is not plain MIT. Quetzal's Go
-implementation is independently written from published protocol facts, the
-original FAQ and local executable analysis. No source, SQL, binaries, assets
-or license-restricted implementation from that project are incorporated.
+implementation models the original FAQ and recovered executable behavior;
+the public schema/documentation was also consulted. This source acknowledgment
+is not a complete implementation-similarity audit. See the repository-wide
+[provenance and licensing review](../../../THIRD_PARTY.md) for its scope and
+limits; acknowledgment does not replace the applicable upstream terms.
 
 ## Rating calculation
 

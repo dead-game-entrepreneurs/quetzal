@@ -487,12 +487,21 @@ fixtures. See [architecture](docs/architecture.md) and
 
 ### Research acknowledgments
 
-[michal-kapala/25tl-rdv](https://github.com/michal-kapala/25tl-rdv) supplied the
-research lead to the original 25 to Life statistics FAQ and useful protocol
-documentation for rankings and localized messages. Quetzal implements those
-published rules independently in Go; the reference project's license includes
-Commons Clause terms in addition to MIT. See [rankings and MOTD](docs/games/25tolife/rankings.md)
-for source attribution, rating/icon rules and announcement configuration.
+Thank you to **GitHubProUser67 and the PSHome-MultiServer contributors**.
+Their [Quazal and Eden/edNet implementation](https://github.com/GitHubProUser67/PSHome-MultiServer)
+was consulted online during TDU bootstrap, proxy and title-service research.
+The inspected revision carries GPLv3; consultation and any implementation reuse
+must be distinguished when assessing licensing.
+
+**michal-kapala and the 25tl-rdv contributors** supplied the original statistics
+FAQ lead and protocol documentation for 25 to Life rankings and localized
+messages. That reference's license includes Commons Clause v1.0 in addition to
+MIT. Angelware and the sibling `tdu-server` also supplied workflows and code.
+
+See [acknowledgments, source inventory and licensing notes](THIRD_PARTY.md),
+[TDU references](docs/games/tdu/external-references.md) and
+[25 to Life rankings](docs/games/25tolife/rankings.md). The provenance notes do
+not claim a completed audit of all potentially adapted implementation logic.
 
 ### Game files
 

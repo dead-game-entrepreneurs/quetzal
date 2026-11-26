@@ -4,3 +4,6 @@
 !cmd/**
 !internal/
 !internal/**
+!third_party/
+!third_party/licenses/
+!third_party/licenses/Go-LICENSE.txt
