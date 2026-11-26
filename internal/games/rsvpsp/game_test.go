@@ -251,7 +251,11 @@ type adapter struct {
 
 func start(t *testing.T) adapter {
 	t.Helper()
-	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	return startWithLog(t, slog.New(slog.NewTextHandler(io.Discard, nil)))
+}
+
+func startWithLog(t *testing.T, log *slog.Logger) adapter {
+	t.Helper()
 	conns := make([]*net.UDPConn, 2)
 	for i := range conns {
 		conn, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})

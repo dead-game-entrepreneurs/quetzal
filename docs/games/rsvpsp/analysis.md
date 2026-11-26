@@ -367,6 +367,12 @@ seconds (180–184 for about three minutes). The adapter keeps careers in
 won, hits, shots and play time, and moves an Elo-style rating (start 1000, K
 32) on rounds won against every other player of the round. It serves rating,
 its last change and rank in the first vector, play time in the second.
+Results are marked counted only after the stats file is saved; a failed save
+returns an RPC error and leaves another client's upload eligible to retry.
+Players carried into a `udp:/fullhouse` game must join the new round with
+60/5 before their reports are accepted. This keeps a late previous-round
+report from consuming the new round's stats, while allowing identical
+results in successive rounds.
 
 ### How the results screen moves on
 

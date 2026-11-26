@@ -3,7 +3,6 @@ package rsvpsp
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"log/slog"
 	"math"
@@ -63,6 +62,10 @@ type match struct {
 	hostURLs []string
 	players  []uint32 // the host first, then joiners in order
 	started  bool     // set by the host's 60/19 (in play); still listed
+	// joined distinguishes this round's participants from players carried
+	// over while their previous-round context is still closing. Those players
+	// must send 60/5 before their 60/12 can report results for the new round.
+	joined map[uint32]bool
 	// stats holds each player's latest reported record (60/12), served by
 	// 60/9 and the join reply in place of an empty one.
 	stats map[uint32][]byte
@@ -88,8 +91,9 @@ type games struct {
 	peers map[uint32]prudp.Peer // live named registrations, for notifications
 	calls []quazal.ServerCall
 	// reported receives each round's new results with the report's play time
-	// in seconds. It is called with mu held and must not call back.
-	reported func(results []matchResult, seconds uint32)
+	// in seconds. It returns only after saving them, or an error so another
+	// upload can retry. It is called with mu held and must not call back.
+	reported func(results []matchResult, seconds uint32) error
 }
 
 func newGames(log *slog.Logger, name func(uint32) string) *games {
@@ -267,7 +271,8 @@ func (g *games) create(peer prudp.Peer, pid uint32, args []byte) ([]byte, error)
 	binary.LittleEndian.PutUint32(record[4:], id)
 	binary.LittleEndian.PutUint32(record[8:], pid)
 	binary.LittleEndian.PutUint32(record[12:], pid)
-	m := &match{id: id, owner: pid, peer: peer, record: record, urls: urls, hostURLs: hostURLs, players: []uint32{pid}}
+	m := &match{id: id, owner: pid, peer: peer, record: record, urls: urls, hostURLs: hostURLs,
+		players: []uint32{pid}, joined: map[uint32]bool{pid: true}}
 	g.byID[id] = m
 	if nextRound {
 		m.players = carried
@@ -307,6 +312,7 @@ func (g *games) join(pid uint32, args []byte) ([]byte, error) {
 		g.notifyLocked(m, pid, pid, eventParticipation+statusPlaying, pid, id, g.name(pid))
 		g.notifyLocked(m, pid, pid, eventRefreshStats, id, 0, "")
 	}
+	m.joined[pid] = true
 	reply := putU32(nil, uint32(len(m.hostURLs)))
 	for _, url := range m.hostURLs {
 		reply = putString(reply, url)
@@ -364,6 +370,7 @@ func (g *games) leave(pid uint32, args []byte) ([]byte, error) {
 		g.log.Info("rsvpsp game closed", "game", id, "owner", pid, "reason", "host left")
 	default:
 		m.players = slices.DeleteFunc(m.players, func(p uint32) bool { return p == pid })
+		delete(m.joined, pid)
 		g.notifyLocked(m, pid, pid, eventParticipation, pid, id, g.name(pid))
 		g.log.Info("rsvpsp player left", "game", id, "pid", pid, "players", m.players, "reason", "left")
 	}
@@ -537,11 +544,11 @@ func (g *games) report(pid uint32, args []byte) ([]byte, error) {
 		}
 	}
 	parsed := r.done()
-	g.log.Info("rsvpsp match report", "game", id, "pid", pid, "value", value, "records", count, "parsed", parsed, "args", hex.EncodeToString(args))
+	g.log.Info("rsvpsp match report", "game", id, "pid", pid, "value", value, "records", count, "parsed", parsed)
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	m := g.byID[id]
-	if m == nil || !m.has(pid) {
+	if m == nil || !m.has(pid) || !m.joined[pid] {
 		return nil, nil
 	}
 	if parsed {
@@ -561,12 +568,16 @@ func (g *games) report(pid uint32, args []byte) ([]byte, error) {
 		var fresh []matchResult
 		for _, player := range m.players {
 			if result, ok := results[player]; ok && !m.counted[player] && validResult(result) {
-				m.counted[player] = true
 				fresh = append(fresh, result)
 			}
 		}
 		if len(fresh) > 0 && g.reported != nil {
-			g.reported(fresh, value)
+			if err := g.reported(fresh, value); err != nil {
+				return nil, err
+			}
+			for _, result := range fresh {
+				m.counted[result.pid] = true
+			}
 		}
 	}
 	g.notifyLocked(m, 0, pid, eventRefreshStats, id, 0, "")
@@ -656,6 +667,7 @@ func (g *games) disconnect(peer prudp.Peer, pid uint32) {
 			g.log.Info("rsvpsp game closed", "game", id, "owner", pid, "reason", "host disconnected")
 		case current && m.owner != pid && m.has(pid):
 			m.players = slices.DeleteFunc(m.players, func(p uint32) bool { return p == pid })
+			delete(m.joined, pid)
 			g.notifyLocked(m, pid, pid, eventParticipation, pid, id, g.name(pid))
 			g.log.Info("rsvpsp player left", "game", id, "pid", pid, "players", m.players)
 		}

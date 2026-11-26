@@ -67,8 +67,8 @@ Tested target: PPSSPP 1.19 or later. Setting names can differ between versions.
 - Account creation: guest login (`pid 100`), registration, then
   `quazal RPC completed` for `protocol 25`, `method 21`.
 - If creation fails, the `quazal RPC rejected` line gives the reason. A
-  profile-record rejection includes the public record's bytes (never the
-  private record, which likely holds the secret answer).
+  profile-record rejection includes the record type and size, without
+  logging personal fields or secret answers.
 - Login: a 10/1 with the new name, a secure connection with its PID and
   registration.
 - After login the menus call Spark 60/7 (statistics) and 60/10 (friends);
@@ -90,8 +90,8 @@ Tested target: PPSSPP 1.19 or later. Setting names can differ between versions.
   `tenants/rsvpsp/stats.json`.
 - Creating a match starts with a public-URL probe from the game's own socket
   (`PRUDP USER request completed` at debug level, from port 1000).
-- `rsvpsp unsupported rpc` lines list title calls the adapter does not
-  answer yet, with their arguments; they show what to implement next. A full
+- `rsvpsp unsupported rpc` lines list the protocol, method and argument size
+  for calls the adapter does not answer yet, without logging payloads. A full
   match and its rounds produce none.
 
 Captures under `work/rsvpsp/session/captures/` contain account secrets; do not

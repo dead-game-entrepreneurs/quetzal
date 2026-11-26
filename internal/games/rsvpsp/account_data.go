@@ -2,7 +2,6 @@ package rsvpsp
 
 import (
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"fmt"
 
@@ -32,8 +31,9 @@ func ValidateAccountData(public, private quazal.AnyData) error {
 		return fmt.Errorf("rsvpsp: unexpected profile record types %q and %q", public.Type, private.Type)
 	}
 	if err := checkRecord(public.Payload, "sbqssss"); err != nil {
-		// The public record holds no secrets, so its bytes help the next field test.
-		return fmt.Errorf("rsvpsp: %s %w (%d bytes: %s)", publicType, err, len(public.Payload), preview(public.Payload))
+		// Public SDK records still contain personal information such as real
+		// names and birthdates. Validation errors reach the ordinary RPC log.
+		return fmt.Errorf("rsvpsp: %s %w (%d bytes)", publicType, err, len(public.Payload))
 	}
 	if err := checkRecord(private.Payload, "ss"); err != nil {
 		// The private record likely holds the secret answer; report its size only.
@@ -85,11 +85,4 @@ func checkRecord(b []byte, layout string) error {
 		return errors.New("has trailing bytes")
 	}
 	return nil
-}
-
-func preview(b []byte) string {
-	if len(b) > 128 {
-		return hex.EncodeToString(b[:128]) + "…"
-	}
-	return hex.EncodeToString(b)
 }

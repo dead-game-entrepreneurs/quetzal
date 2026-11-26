@@ -87,11 +87,7 @@ func newStatsRig(t *testing.T, dir string) statsRig {
 		t.Fatal(err)
 	}
 	s.rating = c.rating
-	g.reported = func(results []matchResult, seconds uint32) {
-		if err := c.commit(results, seconds); err != nil {
-			t.Error(err)
-		}
-	}
+	g.reported = c.commit
 	rig := statsRig{g: g, c: c, s: s, path: path, host: prudp.Peer{ID: 1}, joiner: prudp.Peer{ID: 2}}
 	g.registered(rig.host, 1002, "")
 	g.registered(rig.joiner, 1000, "")
@@ -159,6 +155,7 @@ func TestCareerStatsFromReports(t *testing.T) {
 	if next := binary.LittleEndian.Uint32(rig.spark(t, rig.host, 1002, 4, createNextRoundArgs(t))); next != id {
 		t.Fatalf("next round game %d", next)
 	}
+	rig.spark(t, rig.joiner, 1000, 5, cat(u32(id), []byte{0, 0}))
 	table = cat(u32(2), statRecord(1000, "SNEED", 0, 0, 0, 0, 0, 0, 0, 19), statRecord(1002, "TRIS", 3, 0, 0, 0, 0, 0, 4, 8))
 	rig.spark(t, rig.joiner, 1000, 12, cat(u32(id), u32(500), table))
 	if tris := rig.c.players[1002]; tris.Matches != 2 || tris.Won != 4 || tris.Hits != 5 || tris.Shots != 11 || tris.Seconds != 184+500 {

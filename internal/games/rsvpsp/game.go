@@ -7,7 +7,6 @@
 package rsvpsp
 
 import (
-	"encoding/hex"
 	"log/slog"
 	"net"
 	"net/netip"
@@ -36,8 +35,6 @@ const (
 	// Reliable retransmission budget (about 15 seconds), as for WCC.
 	retryLimit    = 20
 	retryInterval = 750 * time.Millisecond
-	// Request bytes logged for an unsupported title call.
-	logArgs = 256
 )
 
 // Definition returns the retail-port tenant.
@@ -71,14 +68,15 @@ func definition(log *slog.Logger, publicIP netip.Addr, authPort, securePort uint
 		return game.Definition{}, err
 	}
 	friends.rating = stats.rating
-	hosted.reported = func(results []matchResult, seconds uint32) {
+	hosted.reported = func(results []matchResult, seconds uint32) error {
 		if err := stats.commit(results, seconds); err != nil {
 			log.Error("rsvpsp stats not saved", "err", err)
-			return
+			return err
 		}
 		for _, r := range results {
 			log.Info("rsvpsp stats counted", "pid", r.pid, "values", r.values, "seconds", seconds)
 		}
+		return nil
 	}
 	options.GameDisconnect = hosted.disconnect
 	options.GameRegistered = hosted.registered
@@ -106,14 +104,10 @@ func definition(log *slog.Logger, publicIP netip.Addr, authPort, securePort uint
 		case request.Protocol == 3 && request.Method == 3:
 			return hosted.probeExt(pid, request.Args)
 		}
-		// Anything else is refused. Arguments are logged so field tests show
-		// which calls the menus make next.
-		args := request.Args
-		if len(args) > logArgs {
-			args = args[:logArgs]
-		}
+		// Unknown account calls can contain password hashes and private profile
+		// fields. Keep diagnostics to metadata, even when refusing the call.
 		log.Warn("rsvpsp unsupported rpc", "protocol", request.Protocol, "method", request.Method, "pid", pid,
-			"bytes", len(request.Args), "args", hex.EncodeToString(args))
+			"bytes", len(request.Args))
 		return nil, errUnsupported
 	}
 	auth, err := quazal.New(options)
